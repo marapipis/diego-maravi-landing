@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { leadSchema } from "@/lib/validations";
 import { getSupabaseClient } from "@/lib/supabase";
+import { createOrUpdateHubspotContact } from "@/lib/hubspot";
 import { processLeadWorkflow } from "@/lib/workflows/processLead";
 import crypto from "crypto";
 
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
         const normalizedEmail = email.toLowerCase().trim();
         const emailHash = hashSHA256(normalizedEmail);
 
-        console.log(JSON.stringify({ traceId, event: "lead_received", emailHash }));
+        console.log(`[Leads] Recibido: ${emailHash}`);
 
         // --- Obtener UTM params ---
         const url = new URL(request.url);
@@ -96,15 +97,37 @@ export async function POST(request: NextRequest) {
         const utmMedium = url.searchParams.get("utm_medium") || null;
         const utmCampaign = url.searchParams.get("utm_campaign") || null;
 
+        // --- PRIORIDAD 1: HubSpot (bloqueante) ---
+        console.log(`[HubSpot] Intentando crear/actualizar: ${emailHash}`);
+        const hubspotResult = await createOrUpdateHubspotContact({
+            name,
+            email: normalizedEmail,
+            goal,
+            risk_profile,
+            experience,
+            source: utmSource || "landing_page",
+        });
+
+        if (!hubspotResult.success) {
+            console.error(`[HubSpot] Fallo: ${hubspotResult.error} - Email: ${emailHash}`);
+            return NextResponse.json(
+                { error: "Hubo un problema al enviar. Por favor, inténtalo en unos minutos." },
+                { status: 503 }
+            );
+        }
+
+        console.log(`[HubSpot] Success: ${hubspotResult.contactId} - Email: ${emailHash}`);
+
         // --- Conexión a Supabase ---
         let supabase;
         try {
             supabase = getSupabaseClient();
         } catch {
             console.error(JSON.stringify({ traceId, event: "supabase_unavailable" }));
+            // HubSpot ya funcionó, así que respondemos success al cliente
             return NextResponse.json(
-                { error: "Hubo un problema al enviar. Por favor, inténtalo en unos minutos." },
-                { status: 503 }
+                { message: "¡Evaluación registrada con éxito!" },
+                { status: 201 }
             );
         }
 
@@ -123,8 +146,8 @@ export async function POST(request: NextRequest) {
         if (recentLead) {
             console.log(JSON.stringify({ traceId, event: "duplicate_within_window", emailHash }));
             return NextResponse.json(
-                { error: "Ya recibimos tu formulario. Diego te contactará pronto." },
-                { status: 409 }
+                { message: "Ya recibimos tu formulario. Diego te contactará pronto." },
+                { status: 200 }
             );
         }
 
@@ -139,58 +162,69 @@ export async function POST(request: NextRequest) {
 
         const isDuplicate = !!existingLead;
 
-        // --- Insertar lead ---
-        const { data: insertedLead, error: insertError } = await supabase
-            .from("leads")
-            .insert({
-                name,
-                email: normalizedEmail,
-                email_hash: emailHash,
-                goal,
-                risk_profile,
-                experience,
-                is_duplicate: isDuplicate,
-                source: utmSource,
-                utm_medium: utmMedium,
-                utm_campaign: utmCampaign,
-                ip_hash: ipHash,
-            })
-            .select("id")
-            .single();
+        // --- PRIORIDAD 2: Supabase (fire-and-forget) ---
+        const supabaseInsert = async () => {
+            try {
+                const { data: insertedLead, error: insertError } = await supabase
+                    .from("leads")
+                    .insert({
+                        name,
+                        email: normalizedEmail,
+                        email_hash: emailHash,
+                        goal,
+                        risk_profile,
+                        experience,
+                        is_duplicate: isDuplicate,
+                        source: utmSource,
+                        utm_medium: utmMedium,
+                        utm_campaign: utmCampaign,
+                        ip_hash: ipHash,
+                    })
+                    .select("id")
+                    .single();
 
-        if (insertError) {
-            console.error(JSON.stringify({ traceId, event: "insert_failed", error: insertError.message }));
-            return NextResponse.json(
-                { error: "Hubo un problema al enviar. Por favor, inténtalo en unos minutos." },
-                { status: 503 }
-            );
-        }
+                if (insertError) {
+                    console.error(`[Supabase] insert_failed pero no bloquea HubSpot: ${insertError.message}`);
+                    return null;
+                }
 
-        console.log(JSON.stringify({
-            traceId,
-            event: isDuplicate ? "lead_duplicate_created" : "lead_created",
-            emailHash,
-            leadId: insertedLead.id,
-        }));
+                console.log(JSON.stringify({
+                    traceId,
+                    event: isDuplicate ? "lead_duplicate_created" : "lead_created",
+                    emailHash,
+                    leadId: insertedLead.id,
+                }));
 
-        // --- Background workflow (HubSpot sync + emails) ---
-        if (!isDuplicate) {
-            processLeadWorkflow(insertedLead.id, {
-                name,
-                email: normalizedEmail,
-                emailHash,
-                goal,
-                risk_profile,
-                experience,
-                source: utmSource || "landing_page",
-            }, traceId).catch((err) => {
-                console.error(JSON.stringify({ traceId, event: "workflow_error", error: String(err) }));
-            });
-        }
+                return insertedLead;
+            } catch (err) {
+                console.error(`[Supabase] insert_failed pero no bloquea HubSpot: ${String(err)}`);
+                return null;
+            }
+        };
 
+        // Ejecutar Supabase y workflow en background (sin await)
+        supabaseInsert().then((insertedLead) => {
+            if (insertedLead && !isDuplicate) {
+                processLeadWorkflow(insertedLead.id, {
+                    name,
+                    email: normalizedEmail,
+                    emailHash,
+                    goal,
+                    risk_profile,
+                    experience,
+                    source: utmSource || "landing_page",
+                }, traceId).catch((err) => {
+                    console.error(JSON.stringify({ traceId, event: "workflow_error", error: String(err) }));
+                });
+            }
+        }).catch((err) => {
+            console.error(`[Background] Error en cadena Supabase: ${String(err)}`);
+        });
+
+        // Responder inmediatamente (HubSpot ya tuvo éxito)
         return NextResponse.json(
-            { message: isDuplicate ? "Formulario recibido." : "¡Evaluación registrada con éxito!" },
-            { status: isDuplicate ? 200 : 201 }
+            { message: "¡Evaluación registrada con éxito!" },
+            { status: 201 }
         );
     } catch (err) {
         console.error(JSON.stringify({ traceId, event: "unhandled_error", error: String(err) }));
