@@ -1,9 +1,5 @@
-"use client";
-
-import { useState } from "react";
 import Image from "next/image";
 import LeadForm from "./LeadForm";
-import QuizFunnel from "./QuizFunnel";
 
 const BENEFITS = [
     "Aprende a evitar los errores más comunes al empezar en cripto",
@@ -12,7 +8,6 @@ const BENEFITS = [
 ];
 
 export default function Hero() {
-    const [isQuizOpen, setIsQuizOpen] = useState(false);
 
     return (
         <>
@@ -161,13 +156,12 @@ export default function Hero() {
                                         />
                                     </svg>
                                 </a>
-                                <button
-                                    onClick={() => setIsQuizOpen(true)}
+                                <a
+                                    href="#antes-operar"
                                     className="btn-ghost"
-                                    type="button"
                                 >
-                                    Hacer un diagnóstico rápido
-                                </button>
+                                    Ver qué aprenderé
+                                </a>
                             </div>
 
                             <p
@@ -270,7 +264,6 @@ export default function Hero() {
                 </div>
             </section>
 
-            <QuizFunnel isOpen={isQuizOpen} onClose={() => setIsQuizOpen(false)} />
         </>
     );
 }
