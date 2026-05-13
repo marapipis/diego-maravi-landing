@@ -30,11 +30,6 @@ function buildContactProperties(data: HubSpotContactData): Record<string, string
         lastname,
     };
 
-    if (data.goal) properties.meta_financiera = data.goal;
-    if (data.risk_profile) properties.perfil_riesgo = data.risk_profile;
-    if (data.experience) properties.experiencia_inversiones = data.experience;
-    if (data.source) properties.hs_analytics_source = data.source;
-
     return properties;
 }
 
@@ -141,12 +136,7 @@ export async function sendQuizLeadToHubSpot(data: {
             email: data.email.toLowerCase().trim(),
             firstname,
             lastname,
-            hs_analytics_source: "quiz_funnel",
         };
-
-        if (data.answers) {
-            properties.quiz_lead_data = JSON.stringify(data.answers);
-        }
 
         const response = await fetch("https://api.hubapi.com/crm/v3/objects/contacts", {
             method: "POST",
