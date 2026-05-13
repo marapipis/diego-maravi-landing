@@ -36,7 +36,7 @@ export default function SuccessMessage() {
                     opacity: 0,
                 }}
             >
-                ¡Evaluación recibida!
+                Gracias por registrarte.
             </h3>
 
             <p
@@ -50,8 +50,7 @@ export default function SuccessMessage() {
                     opacity: 0,
                 }}
             >
-                Diego revisará tu perfil y te contactará en las próximas 24 horas
-                para agendar tu primera sesión gratuita.
+                Pronto me pondré en contacto contigo.
             </p>
 
             <div
