@@ -37,7 +37,8 @@ function splitName(fullName: string): { firstname: string; lastname: string } {
     };
 }
 
-// Solo propiedades estándar (evita errores "property does not exist").
+// Solo propiedades 100% estándar en todos los portales HubSpot.
+// No incluir propiedades custom ni lead_source (no es estándar).
 function buildStandardProperties(data: HubSpotContactData): Record<string, string> {
     const { firstname, lastname } = splitName(data.fullName);
     const countryLabel = COUNTRY_LABELS[data.country] || data.country;
@@ -48,16 +49,16 @@ function buildStandardProperties(data: HubSpotContactData): Record<string, strin
         lastname,
         phone: data.whatsapp,
         country: countryLabel,
-        hs_lead_status: "NEW",
-        lead_source: data.source || LEAD_SOURCE,
+        lifecyclestage: "lead",
     };
 }
 
-// Cuerpo de la nota anexa: campos cripto consolidados (los que no son estándar).
+// Cuerpo de la nota anexa: toda la info cripto + fuente + fecha.
 function buildLeadNoteHtml(data: HubSpotContactData): string {
     const expLabel = CRYPTO_EXPERIENCE_LABELS[data.cryptoExperience] || data.cryptoExperience;
     const interestLabel = LEARNING_INTEREST_LABELS[data.learningInterest] || data.learningInterest;
     const countryLabel = COUNTRY_LABELS[data.country] || data.country;
+    const fecha = new Date().toLocaleString("es-PE", { timeZone: "America/Lima" });
 
     return `
 <p><strong>Lead nuevo desde landing cripto Bitunix</strong></p>
@@ -69,6 +70,7 @@ function buildLeadNoteHtml(data: HubSpotContactData): string {
   <li><strong>Experiencia con cripto:</strong> ${expLabel}</li>
   <li><strong>Qué quiere aprender primero:</strong> ${interestLabel}</li>
   <li><strong>Aceptó disclaimer de riesgo:</strong> ${data.acceptedRiskDisclaimer ? "Sí" : "No"}</li>
+  <li><strong>Fecha de registro:</strong> ${fecha} (hora Lima)</li>
 </ul>
 `.trim();
 }
