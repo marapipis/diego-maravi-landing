@@ -24,8 +24,10 @@ export const CRYPTO_EXPERIENCE_OPTIONS = [
 
 export const LEARNING_INTEREST_OPTIONS = [
     { value: "fundamentos", label: "Fundamentos: cómo empezar de forma segura" },
+    { value: "seguridad", label: "Seguridad: proteger tus activos y evitar estafas" },
     { value: "spot", label: "Compra/venta spot (largo plazo)" },
     { value: "futuros", label: "Futuros y apalancamiento (con gestión de riesgo)" },
+    { value: "bitunix", label: "Plataforma Bitunix: cómo operar en su ecosistema" },
     { value: "analisis", label: "Análisis técnico básico" },
 ] as const;
 
