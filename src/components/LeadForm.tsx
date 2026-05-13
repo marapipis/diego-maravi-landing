@@ -1,24 +1,33 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { validateField, type LeadFormData } from "@/lib/validations";
+import { validateField, type LeadFormState } from "@/lib/validations";
 import {
-    GOAL_OPTIONS,
-    RISK_PROFILE_OPTIONS,
-    EXPERIENCE_OPTIONS,
+    COUNTRY_OPTIONS,
+    CRYPTO_EXPERIENCE_OPTIONS,
+    LEARNING_INTEREST_OPTIONS,
 } from "../../config/form-options";
 import SuccessMessage from "./SuccessMessage";
 
-type FieldErrors = Partial<Record<keyof LeadFormData, string | null>>;
+type FieldErrors = Partial<Record<keyof LeadFormState, string | null>>;
 
-export default function LeadForm() {
-    const [formData, setFormData] = useState<LeadFormData>({
-        name: "",
-        email: "",
-        goal: "" as LeadFormData["goal"],
-        risk_profile: "" as LeadFormData["risk_profile"],
-        experience: "" as LeadFormData["experience"],
-    });
+const initialState: LeadFormState = {
+    fullName: "",
+    email: "",
+    whatsapp: "",
+    country: "",
+    cryptoExperience: "",
+    learningInterest: "",
+    acceptedRiskDisclaimer: false,
+};
+
+interface LeadFormProps {
+    formId?: string;
+    compact?: boolean;
+}
+
+export default function LeadForm({ formId = "lead-form", compact = false }: LeadFormProps) {
+    const [formData, setFormData] = useState<LeadFormState>(initialState);
     const [errors, setErrors] = useState<FieldErrors>({});
     const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
     const [serverError, setServerError] = useState<string | null>(null);
@@ -26,26 +35,15 @@ export default function LeadForm() {
     const honeypotRef = useRef<HTMLInputElement>(null);
 
     const handleChange = useCallback(
-        (field: keyof LeadFormData, value: string) => {
+        (field: keyof LeadFormState, value: string | boolean) => {
             setFormData((prev) => ({ ...prev, [field]: value }));
-            if (errors[field]) {
-                setErrors((prev) => ({ ...prev, [field]: null }));
-            }
-        },
-        [errors]
-    );
-
-    const validateOnChange = useCallback(
-        (field: keyof LeadFormData, value: string) => {
-            if (!value) return;
-            const error = validateField(field, value);
-            setErrors((prev) => ({ ...prev, [field]: error }));
+            setErrors((prev) => ({ ...prev, [field]: null }));
         },
         []
     );
 
-    const handleBlur = useCallback((field: keyof LeadFormData, value: string) => {
-        if (!value) return; // No validar campos vacíos on-blur (solo on-submit)
+    const handleBlur = useCallback((field: keyof LeadFormState, value: string | boolean) => {
+        if (typeof value === "string" && !value) return;
         const error = validateField(field, value);
         setErrors((prev) => ({ ...prev, [field]: error }));
     }, []);
@@ -54,17 +52,24 @@ export default function LeadForm() {
         const newErrors: FieldErrors = {};
         let valid = true;
 
-        (Object.keys(formData) as (keyof LeadFormData)[]).forEach((field) => {
+        (Object.keys(formData) as (keyof LeadFormState)[]).forEach((field) => {
             const value = formData[field];
-            if (!value) {
-                newErrors[field] = "Este campo es obligatorio";
-                valid = false;
-            } else {
-                const error = validateField(field, value);
-                if (error) {
-                    newErrors[field] = error;
+            if (field === "acceptedRiskDisclaimer") {
+                if (value !== true) {
+                    newErrors[field] = "Debes aceptar el aviso de riesgo para continuar";
                     valid = false;
                 }
+                return;
+            }
+            if (typeof value === "string" && !value.trim()) {
+                newErrors[field] = "Este campo es obligatorio";
+                valid = false;
+                return;
+            }
+            const error = validateField(field, value);
+            if (error) {
+                newErrors[field] = error;
+                valid = false;
             }
         });
 
@@ -76,10 +81,8 @@ export default function LeadForm() {
         e.preventDefault();
         setServerError(null);
 
-        // Honeypot check (bots rellenan campos ocultos)
         if (honeypotRef.current?.value) return;
 
-        // Debounce de 3 segundos
         const now = Date.now();
         if (now - lastSubmitRef.current < 3000) return;
         lastSubmitRef.current = now;
@@ -103,14 +106,26 @@ export default function LeadForm() {
 
             if (res.ok) {
                 setStatus("success");
-            } else if (res.status === 409) {
-                setServerError("Ya recibimos tu formulario. Diego te contactará pronto.");
-                setStatus("error");
             } else if (res.status === 429) {
-                setServerError("Demasiados intentos. Por favor, espera unos minutos.");
+                setServerError("Demasiados intentos. Espera unos minutos.");
+                setStatus("error");
+            } else if (res.status === 400) {
+                const json = await res.json().catch(() => ({}));
+                if (json?.fields?.length) {
+                    const fe: FieldErrors = {};
+                    for (const f of json.fields) {
+                        fe[f.field as keyof LeadFormState] = f.message;
+                    }
+                    setErrors(fe);
+                    setServerError("Revisa los campos marcados.");
+                } else {
+                    setServerError("Datos inválidos. Revisa el formulario.");
+                }
                 setStatus("error");
             } else {
-                setServerError("Hubo un problema al enviar. Por favor, inténtalo en unos minutos.");
+                setServerError(
+                    "Hubo un problema al enviar tu registro. Inténtalo nuevamente en unos segundos."
+                );
                 setStatus("error");
             }
         } catch (err) {
@@ -125,43 +140,51 @@ export default function LeadForm() {
 
     if (status === "success") {
         return (
-            <div className="glass-card">
+            <div className="glass-card" style={{ padding: compact ? "1.5rem" : "2rem" }}>
                 <SuccessMessage />
             </div>
         );
     }
 
+    const labelStyle: React.CSSProperties = {
+        display: "block",
+        fontSize: "0.8125rem",
+        color: "#9CA3AF",
+        marginBottom: "0.375rem",
+        fontWeight: 500,
+    };
+
     return (
-        <div className="glass-card" style={{ padding: "2rem" }}>
-            {/* Card header */}
-            <div style={{ marginBottom: "1.5rem" }}>
-                <div
-                    className="flex items-center gap-2"
-                    style={{ marginBottom: "0.5rem" }}
+        <div className="glass-card" style={{ padding: compact ? "1.5rem" : "2rem" }}>
+            <div style={{ marginBottom: "1.25rem" }}>
+                <span
+                    style={{
+                        color: "#10B981",
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.1em",
+                    }}
                 >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00A8E8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 20V10" />
-                        <path d="M18 20V4" />
-                        <path d="M6 20v-4" />
-                    </svg>
-                    <span
-                        style={{
-                            color: "#00A8E8",
-                            fontSize: "0.8125rem",
-                            fontWeight: 600,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                        }}
-                    >
-                        Evaluación Gratuita
-                    </span>
-                </div>
-                <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#FFFFFF", margin: 0 }}>
-                    ¿Cuál es tu perfil financiero?
+                    Acceso gratuito
+                </span>
+                <h2
+                    style={{
+                        fontSize: "1.35rem",
+                        fontWeight: 800,
+                        color: "#FFFFFF",
+                        margin: "0.4rem 0 0.4rem 0",
+                        lineHeight: 1.25,
+                    }}
+                >
+                    Solicita tu guía cripto
                 </h2>
+                <p style={{ color: "#9CA3AF", fontSize: "0.875rem", margin: 0, lineHeight: 1.5 }}>
+                    Recibirás contenido educativo gratuito. No compartiremos tu información con
+                    terceros sin tu consentimiento.
+                </p>
             </div>
 
-            {/* Server error banner */}
             {serverError && (
                 <div
                     role="alert"
@@ -169,10 +192,10 @@ export default function LeadForm() {
                     style={{
                         background: "rgba(239, 68, 68, 0.1)",
                         border: "1px solid rgba(239, 68, 68, 0.3)",
-                        borderRadius: "8px",
+                        borderRadius: "10px",
                         padding: "0.75rem 1rem",
                         marginBottom: "1rem",
-                        color: "#EF4444",
+                        color: "#FCA5A5",
                         fontSize: "0.875rem",
                     }}
                 >
@@ -181,11 +204,11 @@ export default function LeadForm() {
             )}
 
             <form onSubmit={handleSubmit} noValidate>
-                {/* Honeypot — invisible para usuarios reales */}
+                {/* Honeypot */}
                 <div className="hp-field" aria-hidden="true">
-                    <label htmlFor="hp-website">Website</label>
+                    <label htmlFor={`${formId}-hp-website`}>Website</label>
                     <input
-                        id="hp-website"
+                        id={`${formId}-hp-website`}
                         ref={honeypotRef}
                         type="text"
                         name="website"
@@ -195,167 +218,179 @@ export default function LeadForm() {
                 </div>
 
                 {/* Nombre */}
-                <div style={{ marginBottom: "1rem" }}>
-                    <label
-                        htmlFor="lead-name"
-                        style={{ display: "block", fontSize: "0.8125rem", color: "#9CA3AF", marginBottom: "0.375rem", fontWeight: 500 }}
-                    >
+                <div style={{ marginBottom: "0.875rem" }}>
+                    <label htmlFor={`${formId}-fullname`} style={labelStyle}>
                         Nombre completo
                     </label>
                     <input
-                        id="lead-name"
+                        id={`${formId}-fullname`}
                         type="text"
-                        className={`form-input ${errors.name ? "error" : ""}`}
+                        className={`form-input ${errors.fullName ? "error" : ""}`}
                         placeholder="Ej: Carlos Rivera"
-                        value={formData.name}
-                        onChange={(e) => {
-                            handleChange("name", e.target.value);
-                            validateOnChange("name", e.target.value);
-                        }}
-                        onBlur={(e) => handleBlur("name", e.target.value)}
+                        value={formData.fullName}
+                        onChange={(e) => handleChange("fullName", e.target.value)}
+                        onBlur={(e) => handleBlur("fullName", e.target.value)}
                         disabled={status === "loading"}
                         autoComplete="name"
-                        aria-invalid={!!errors.name}
-                        aria-describedby={errors.name ? "lead-name-error" : undefined}
+                        aria-invalid={!!errors.fullName}
                     />
-                    <div id="lead-name-error" className="field-error" role="alert" aria-live="polite">
-                        {errors.name || ""}
+                    <div className="field-error" role="alert" aria-live="polite">
+                        {errors.fullName || ""}
                     </div>
                 </div>
 
                 {/* Email */}
-                <div style={{ marginBottom: "1rem" }}>
-                    <label
-                        htmlFor="lead-email"
-                        style={{ display: "block", fontSize: "0.8125rem", color: "#9CA3AF", marginBottom: "0.375rem", fontWeight: 500 }}
-                    >
+                <div style={{ marginBottom: "0.875rem" }}>
+                    <label htmlFor={`${formId}-email`} style={labelStyle}>
                         Correo electrónico
                     </label>
                     <input
-                        id="lead-email"
+                        id={`${formId}-email`}
                         type="email"
                         className={`form-input ${errors.email ? "error" : ""}`}
                         placeholder="tu@correo.com"
                         value={formData.email}
-                        onChange={(e) => {
-                            handleChange("email", e.target.value);
-                            validateOnChange("email", e.target.value);
-                        }}
+                        onChange={(e) => handleChange("email", e.target.value)}
                         onBlur={(e) => handleBlur("email", e.target.value)}
                         disabled={status === "loading"}
                         autoComplete="email"
                         aria-invalid={!!errors.email}
-                        aria-describedby={errors.email ? "lead-email-error" : undefined}
                     />
-                    <div id="lead-email-error" className="field-error" role="alert" aria-live="polite">
+                    <div className="field-error" role="alert" aria-live="polite">
                         {errors.email || ""}
                     </div>
                 </div>
 
-                {/* Meta financiera */}
-                <div style={{ marginBottom: "1rem" }}>
-                    <label
-                        htmlFor="lead-goal"
-                        style={{ display: "block", fontSize: "0.8125rem", color: "#9CA3AF", marginBottom: "0.375rem", fontWeight: 500 }}
-                    >
-                        ¿Cuál es tu meta financiera principal?
+                {/* WhatsApp */}
+                <div style={{ marginBottom: "0.875rem" }}>
+                    <label htmlFor={`${formId}-whatsapp`} style={labelStyle}>
+                        WhatsApp (con código de país)
                     </label>
-                    <select
-                        id="lead-goal"
-                        className={`form-input ${errors.goal ? "error" : ""}`}
-                        value={formData.goal}
-                        onChange={(e) => {
-                            handleChange("goal", e.target.value);
-                            validateOnChange("goal", e.target.value);
-                        }}
-                        onBlur={(e) => handleBlur("goal", e.target.value)}
+                    <input
+                        id={`${formId}-whatsapp`}
+                        type="tel"
+                        inputMode="tel"
+                        className={`form-input ${errors.whatsapp ? "error" : ""}`}
+                        placeholder="+51 999 888 777"
+                        value={formData.whatsapp}
+                        onChange={(e) => handleChange("whatsapp", e.target.value)}
+                        onBlur={(e) => handleBlur("whatsapp", e.target.value)}
                         disabled={status === "loading"}
-                        aria-invalid={!!errors.goal}
-                        aria-describedby={errors.goal ? "lead-goal-error" : undefined}
-                    >
-                        <option value="" disabled>
-                            Selecciona una opción
-                        </option>
-                        {GOAL_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                            </option>
-                        ))}
-                    </select>
-                    <div id="lead-goal-error" className="field-error" role="alert" aria-live="polite">
-                        {errors.goal || ""}
+                        autoComplete="tel"
+                        aria-invalid={!!errors.whatsapp}
+                    />
+                    <div className="field-error" role="alert" aria-live="polite">
+                        {errors.whatsapp || ""}
                     </div>
                 </div>
 
-                {/* Perfil de riesgo */}
-                <div style={{ marginBottom: "1rem" }}>
-                    <label
-                        htmlFor="lead-risk"
-                        style={{ display: "block", fontSize: "0.8125rem", color: "#9CA3AF", marginBottom: "0.375rem", fontWeight: 500 }}
-                    >
-                        Si tu inversión cae 10%, ¿qué haces?
+                {/* País */}
+                <div style={{ marginBottom: "0.875rem" }}>
+                    <label htmlFor={`${formId}-country`} style={labelStyle}>
+                        País
                     </label>
                     <select
-                        id="lead-risk"
-                        className={`form-input ${errors.risk_profile ? "error" : ""}`}
-                        value={formData.risk_profile}
-                        onChange={(e) => {
-                            handleChange("risk_profile", e.target.value);
-                            validateOnChange("risk_profile", e.target.value);
-                        }}
-                        onBlur={(e) => handleBlur("risk_profile", e.target.value)}
+                        id={`${formId}-country`}
+                        className={`form-input ${errors.country ? "error" : ""}`}
+                        value={formData.country}
+                        onChange={(e) => handleChange("country", e.target.value)}
+                        onBlur={(e) => handleBlur("country", e.target.value)}
                         disabled={status === "loading"}
-                        aria-invalid={!!errors.risk_profile}
-                        aria-describedby={errors.risk_profile ? "lead-risk-error" : undefined}
+                        aria-invalid={!!errors.country}
                     >
-                        <option value="" disabled>
-                            Selecciona una opción
-                        </option>
-                        {RISK_PROFILE_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                            </option>
+                        <option value="" disabled>Selecciona tu país</option>
+                        {COUNTRY_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                     </select>
-                    <div id="lead-risk-error" className="field-error" role="alert" aria-live="polite">
-                        {errors.risk_profile || ""}
+                    <div className="field-error" role="alert" aria-live="polite">
+                        {errors.country || ""}
                     </div>
                 </div>
 
-                {/* Experiencia */}
-                <div style={{ marginBottom: "1.25rem" }}>
-                    <label
-                        htmlFor="lead-exp"
-                        style={{ display: "block", fontSize: "0.8125rem", color: "#9CA3AF", marginBottom: "0.375rem", fontWeight: 500 }}
-                    >
-                        ¿Has invertido antes?
+                {/* Experiencia cripto */}
+                <div style={{ marginBottom: "0.875rem" }}>
+                    <label htmlFor={`${formId}-exp`} style={labelStyle}>
+                        ¿Cuál es tu experiencia con cripto?
                     </label>
                     <select
-                        id="lead-exp"
-                        className={`form-input ${errors.experience ? "error" : ""}`}
-                        value={formData.experience}
-                        onChange={(e) => {
-                            handleChange("experience", e.target.value);
-                            validateOnChange("experience", e.target.value);
-                        }}
-                        onBlur={(e) => handleBlur("experience", e.target.value)}
+                        id={`${formId}-exp`}
+                        className={`form-input ${errors.cryptoExperience ? "error" : ""}`}
+                        value={formData.cryptoExperience}
+                        onChange={(e) => handleChange("cryptoExperience", e.target.value)}
+                        onBlur={(e) => handleBlur("cryptoExperience", e.target.value)}
                         disabled={status === "loading"}
-                        aria-invalid={!!errors.experience}
-                        aria-describedby={errors.experience ? "lead-exp-error" : undefined}
+                        aria-invalid={!!errors.cryptoExperience}
                     >
-                        <option value="" disabled>
-                            Selecciona una opción
-                        </option>
-                        {EXPERIENCE_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                            </option>
+                        <option value="" disabled>Selecciona una opción</option>
+                        {CRYPTO_EXPERIENCE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                     </select>
-                    <div id="lead-exp-error" className="field-error" role="alert" aria-live="polite">
-                        {errors.experience || ""}
+                    <div className="field-error" role="alert" aria-live="polite">
+                        {errors.cryptoExperience || ""}
                     </div>
                 </div>
+
+                {/* Interés de aprendizaje */}
+                <div style={{ marginBottom: "1rem" }}>
+                    <label htmlFor={`${formId}-interest`} style={labelStyle}>
+                        ¿Qué te gustaría aprender primero?
+                    </label>
+                    <select
+                        id={`${formId}-interest`}
+                        className={`form-input ${errors.learningInterest ? "error" : ""}`}
+                        value={formData.learningInterest}
+                        onChange={(e) => handleChange("learningInterest", e.target.value)}
+                        onBlur={(e) => handleBlur("learningInterest", e.target.value)}
+                        disabled={status === "loading"}
+                        aria-invalid={!!errors.learningInterest}
+                    >
+                        <option value="" disabled>Selecciona una opción</option>
+                        {LEARNING_INTEREST_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                    </select>
+                    <div className="field-error" role="alert" aria-live="polite">
+                        {errors.learningInterest || ""}
+                    </div>
+                </div>
+
+                {/* Disclaimer */}
+                <label
+                    htmlFor={`${formId}-disclaimer`}
+                    style={{
+                        display: "flex",
+                        gap: "0.75rem",
+                        alignItems: "flex-start",
+                        padding: "0.75rem",
+                        background: "rgba(255,255,255,0.02)",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                        borderRadius: "10px",
+                        marginBottom: "1rem",
+                        cursor: "pointer",
+                    }}
+                >
+                    <input
+                        id={`${formId}-disclaimer`}
+                        type="checkbox"
+                        className="custom-checkbox"
+                        checked={formData.acceptedRiskDisclaimer}
+                        onChange={(e) => handleChange("acceptedRiskDisclaimer", e.target.checked)}
+                        disabled={status === "loading"}
+                        aria-invalid={!!errors.acceptedRiskDisclaimer}
+                    />
+                    <span style={{ fontSize: "0.8125rem", color: "#D1D5DB", lineHeight: 1.5 }}>
+                        Entiendo que el contenido es <strong>educativo</strong> y no es asesoría
+                        financiera. Operar en cripto implica riesgos y nunca debo invertir dinero
+                        que no pueda permitirme perder.
+                    </span>
+                </label>
+                {errors.acceptedRiskDisclaimer && (
+                    <div className="field-error" role="alert" aria-live="polite" style={{ marginTop: "-0.5rem", marginBottom: "0.75rem" }}>
+                        {errors.acceptedRiskDisclaimer}
+                    </div>
+                )}
 
                 {/* Submit */}
                 <button
@@ -364,16 +399,15 @@ export default function LeadForm() {
                     disabled={status === "loading"}
                 >
                     {status === "loading" ? (
-                        <span className="flex items-center justify-center gap-2">
+                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
                             <span className="spinner" />
-                            Enviando...
+                            Enviando tu registro...
                         </span>
                     ) : (
-                        "Quiero mi evaluación gratuita →"
+                        "Quiero mi guía gratuita"
                     )}
                 </button>
 
-                {/* Privacy notice */}
                 <p
                     style={{
                         marginTop: "0.75rem",
@@ -383,7 +417,7 @@ export default function LeadForm() {
                         lineHeight: 1.5,
                     }}
                 >
-                    🔒 Tus datos están 100 % seguros. Solo los usaremos para contactarte.
+                    Después de registrarte, recibirás la guía y los siguientes pasos por correo.
                 </p>
             </form>
         </div>

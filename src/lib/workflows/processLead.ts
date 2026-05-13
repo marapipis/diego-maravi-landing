@@ -3,13 +3,15 @@ import { getSupabaseClient } from "../supabase";
 import { syncLeadToHubspot } from "../hubspot";
 import { sendLeadEmails } from "../email-workflows";
 
-interface LeadWorkflowData {
-    name: string;
+export interface LeadWorkflowData {
+    fullName: string;
     email: string;
     emailHash: string;
-    goal: string;
-    risk_profile: string;
-    experience: string;
+    whatsapp: string;
+    country: string;
+    cryptoExperience: string;
+    learningInterest: string;
+    acceptedRiskDisclaimer: boolean;
     source: string;
 }
 
@@ -42,7 +44,6 @@ async function logWorkflowEvent(
 /**
  * Full lead processing workflow (runs after HTTP response is sent).
  * Steps: HubSpot sync → emails → complete.
- * Each step is independent — failures don't block subsequent steps.
  */
 export async function processLeadWorkflow(
     leadId: string,
@@ -59,23 +60,28 @@ export async function processLeadWorkflow(
 
     await logWorkflowEvent(supabase, leadId, "workflow_started", "started");
 
-    // Step 1: Sync to HubSpot
+    // Step 1: Sync to HubSpot (already done synchronously in API route, but re-runs as backup)
     try {
         await logWorkflowEvent(supabase, leadId, "hubspot_sync", "started");
 
         const hubspotResult = await syncLeadToHubspot(supabase, leadId, {
-            name: data.name,
+            fullName: data.fullName,
             email: data.email,
-            goal: data.goal,
-            risk_profile: data.risk_profile,
-            experience: data.experience,
+            whatsapp: data.whatsapp,
+            country: data.country,
+            cryptoExperience: data.cryptoExperience,
+            learningInterest: data.learningInterest,
+            acceptedRiskDisclaimer: data.acceptedRiskDisclaimer,
             source: data.source,
         });
 
-        await logWorkflowEvent(supabase, leadId, "hubspot_sync", hubspotResult.success ? "success" : "error", {
-            contactId: hubspotResult.contactId,
-            error: hubspotResult.error,
-        });
+        await logWorkflowEvent(
+            supabase,
+            leadId,
+            "hubspot_sync",
+            hubspotResult.success ? "success" : "error",
+            { contactId: hubspotResult.contactId, error: hubspotResult.error }
+        );
 
         console.log(JSON.stringify({
             traceId,
@@ -93,11 +99,12 @@ export async function processLeadWorkflow(
         await logWorkflowEvent(supabase, leadId, "send_emails", "started");
 
         await sendLeadEmails(supabase, leadId, data.emailHash, {
-            name: data.name,
+            fullName: data.fullName,
             email: data.email,
-            goal: data.goal,
-            risk_profile: data.risk_profile,
-            experience: data.experience,
+            whatsapp: data.whatsapp,
+            country: data.country,
+            cryptoExperience: data.cryptoExperience,
+            learningInterest: data.learningInterest,
         });
 
         await logWorkflowEvent(supabase, leadId, "send_emails", "success");
@@ -106,12 +113,11 @@ export async function processLeadWorkflow(
         console.error(JSON.stringify({ traceId, event: "email_workflow_error", error: String(err) }));
     }
 
-    // Step 3: Complete
     await logWorkflowEvent(supabase, leadId, "workflow_complete", "success");
 }
 
 /**
- * Quiz lead processing workflow (simpler — HubSpot sync only, no emails).
+ * Quiz lead processing workflow.
  */
 export async function processQuizLeadWorkflow(
     leadId: string,
@@ -127,33 +133,7 @@ export async function processQuizLeadWorkflow(
     }
 
     await logWorkflowEvent(supabase, leadId, "workflow_started", "started");
-
-    // Step 1: Sync to HubSpot
-    try {
-        await logWorkflowEvent(supabase, leadId, "hubspot_sync", "started");
-
-        const hubspotResult = await syncLeadToHubspot(supabase, leadId, {
-            name: data.name,
-            email: data.email,
-            source: "quiz_funnel",
-        });
-
-        await logWorkflowEvent(supabase, leadId, "hubspot_sync", hubspotResult.success ? "success" : "error", {
-            contactId: hubspotResult.contactId,
-            error: hubspotResult.error,
-        });
-
-        console.log(JSON.stringify({
-            traceId,
-            event: "hubspot_sync",
-            success: hubspotResult.success,
-            contactId: hubspotResult.contactId,
-        }));
-    } catch (err) {
-        await logWorkflowEvent(supabase, leadId, "hubspot_sync", "error", { error: String(err) });
-        console.error(JSON.stringify({ traceId, event: "hubspot_sync_error", error: String(err) }));
-    }
-
-    // Step 2: Complete
+    // El quiz funnel cripto comparte API con /api/leads ahora; este flujo se conserva
+    // sólo para registros legacy de quiz_leads que aún no se hayan procesado.
     await logWorkflowEvent(supabase, leadId, "workflow_complete", "success");
 }

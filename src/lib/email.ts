@@ -1,19 +1,25 @@
 import {
-    GOAL_LABELS,
-    RISK_LABELS,
-    EXPERIENCE_LABELS,
+    COUNTRY_LABELS,
+    CRYPTO_EXPERIENCE_LABELS,
+    LEARNING_INTEREST_LABELS,
 } from "../../config/form-options";
 
 interface LeadData {
-    name: string;
+    fullName: string;
     email: string;
-    goal: string;
-    risk_profile: string;
-    experience: string;
+    whatsapp: string;
+    country: string;
+    cryptoExperience: string;
+    learningInterest: string;
 }
 
-// Envía la notificación al coach sobre un nuevo lead
-export async function sendCoachNotification(lead: LeadData): Promise<{ success: boolean; providerId?: string }> {
+// Link al PDF de la guía (placeholder hasta tener la URL final).
+const GUIDE_PDF_URL = process.env.NEXT_PUBLIC_GUIDE_PDF_URL || "#";
+
+// Notificación al coach: nuevo lead registrado.
+export async function sendCoachNotification(
+    lead: LeadData
+): Promise<{ success: boolean; providerId?: string }> {
     const apiKey = process.env.RESEND_API_KEY;
     const coachEmail = process.env.COACH_EMAIL;
     const fromEmail = process.env.FROM_EMAIL || "noreply@diegomaravi.com";
@@ -23,8 +29,7 @@ export async function sendCoachNotification(lead: LeadData): Promise<{ success: 
         return { success: false };
     }
 
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString("es-PE", {
+    const formattedDate = new Date().toLocaleDateString("es-PE", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -33,23 +38,24 @@ export async function sendCoachNotification(lead: LeadData): Promise<{ success: 
         timeZone: "America/Lima",
     });
 
-    const goalLabel = GOAL_LABELS[lead.goal] || lead.goal;
-    const riskLabel = RISK_LABELS[lead.risk_profile] || lead.risk_profile;
-    const expLabel = EXPERIENCE_LABELS[lead.experience] || lead.experience;
+    const countryLabel = COUNTRY_LABELS[lead.country] || lead.country;
+    const expLabel = CRYPTO_EXPERIENCE_LABELS[lead.cryptoExperience] || lead.cryptoExperience;
+    const interestLabel = LEARNING_INTEREST_LABELS[lead.learningInterest] || lead.learningInterest;
 
     const htmlBody = `
-    <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0B1120; color: #FFFFFF; padding: 2rem; border-radius: 12px;">
-      <h2 style="color: #00A8E8; margin-bottom: 1.5rem;">🎯 Nuevo Lead Recibido</h2>
+    <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0A0E1A; color: #FFFFFF; padding: 2rem; border-radius: 12px;">
+      <h2 style="color: #10B981; margin-bottom: 1.5rem;">Nuevo lead — Guía Cripto</h2>
       <table style="width: 100%; border-collapse: collapse;">
-        <tr><td style="padding: 0.5rem 0; color: #9CA3AF;">Nombre</td><td style="padding: 0.5rem 0; font-weight: 600;">${lead.name}</td></tr>
-        <tr><td style="padding: 0.5rem 0; color: #9CA3AF;">Email</td><td style="padding: 0.5rem 0;"><a href="mailto:${lead.email}" style="color: #00A8E8;">${lead.email}</a></td></tr>
-        <tr><td style="padding: 0.5rem 0; color: #9CA3AF;">Meta financiera</td><td style="padding: 0.5rem 0;">${goalLabel}</td></tr>
-        <tr><td style="padding: 0.5rem 0; color: #9CA3AF;">Perfil de riesgo</td><td style="padding: 0.5rem 0;">${riskLabel}</td></tr>
-        <tr><td style="padding: 0.5rem 0; color: #9CA3AF;">Experiencia</td><td style="padding: 0.5rem 0;">${expLabel}</td></tr>
+        <tr><td style="padding: 0.5rem 0; color: #9CA3AF;">Nombre</td><td style="padding: 0.5rem 0; font-weight: 600;">${lead.fullName}</td></tr>
+        <tr><td style="padding: 0.5rem 0; color: #9CA3AF;">Email</td><td style="padding: 0.5rem 0;"><a href="mailto:${lead.email}" style="color: #10B981;">${lead.email}</a></td></tr>
+        <tr><td style="padding: 0.5rem 0; color: #9CA3AF;">WhatsApp</td><td style="padding: 0.5rem 0;">${lead.whatsapp}</td></tr>
+        <tr><td style="padding: 0.5rem 0; color: #9CA3AF;">País</td><td style="padding: 0.5rem 0;">${countryLabel}</td></tr>
+        <tr><td style="padding: 0.5rem 0; color: #9CA3AF;">Experiencia cripto</td><td style="padding: 0.5rem 0;">${expLabel}</td></tr>
+        <tr><td style="padding: 0.5rem 0; color: #9CA3AF;">Quiere aprender</td><td style="padding: 0.5rem 0;">${interestLabel}</td></tr>
         <tr><td style="padding: 0.5rem 0; color: #9CA3AF;">Fecha</td><td style="padding: 0.5rem 0;">${formattedDate}</td></tr>
       </table>
       <hr style="border: 1px solid rgba(255,255,255,0.1); margin: 1.5rem 0;" />
-      <p style="color: #9CA3AF; font-size: 0.875rem;">Respóndele lo antes posible para maximizar la conversión.</p>
+      <p style="color: #9CA3AF; font-size: 0.875rem;">Fuente: Landing Cripto Bitunix. Etapa: Lead nuevo - Guía cripto solicitada.</p>
     </div>
   `;
 
@@ -57,13 +63,15 @@ export async function sendCoachNotification(lead: LeadData): Promise<{ success: 
         apiKey,
         from: fromEmail,
         to: coachEmail,
-        subject: `Nuevo lead: ${lead.name} — ${goalLabel}`,
+        subject: `Nuevo lead cripto: ${lead.fullName} (${countryLabel})`,
         html: htmlBody,
     });
 }
 
-// Envía la confirmación al prospecto
-export async function sendLeadConfirmation(lead: LeadData): Promise<{ success: boolean; providerId?: string }> {
+// Confirmación al lead: entrega la guía gratuita.
+export async function sendLeadConfirmation(
+    lead: LeadData
+): Promise<{ success: boolean; providerId?: string }> {
     const apiKey = process.env.RESEND_API_KEY;
     const fromEmail = process.env.FROM_EMAIL || "noreply@diegomaravi.com";
 
@@ -72,22 +80,26 @@ export async function sendLeadConfirmation(lead: LeadData): Promise<{ success: b
         return { success: false };
     }
 
-    const goalLabel = GOAL_LABELS[lead.goal] || lead.goal;
-    const riskLabel = RISK_LABELS[lead.risk_profile] || lead.risk_profile;
-    const expLabel = EXPERIENCE_LABELS[lead.experience] || lead.experience;
+    const ctaHtml = GUIDE_PDF_URL !== "#"
+        ? `<p style="margin: 1.5rem 0;"><a href="${GUIDE_PDF_URL}" style="display: inline-block; background: linear-gradient(135deg, #10B981, #34D399); color: #0A0E1A; font-weight: 700; padding: 0.875rem 1.75rem; border-radius: 0.75rem; text-decoration: none;">Descargar la guía</a></p>`
+        : `<p style="color: #9CA3AF; font-size: 0.9375rem;">Te enviaré la guía en cuanto esté lista (en las próximas horas). Mientras tanto, revisa tu bandeja de entrada y la carpeta de promociones.</p>`;
 
     const htmlBody = `
-    <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0B1120; color: #FFFFFF; padding: 2rem; border-radius: 12px;">
-      <h2 style="color: #00A8E8;">¡Hola ${lead.name}! 👋</h2>
-      <p>Recibimos tu evaluación financiera. Aquí un resumen de lo que nos compartiste:</p>
-      <ul style="list-style: none; padding: 0;">
-        <li style="padding: 0.4rem 0;">✅ <strong>Meta:</strong> ${goalLabel}</li>
-        <li style="padding: 0.4rem 0;">✅ <strong>Perfil:</strong> ${riskLabel}</li>
-        <li style="padding: 0.4rem 0;">✅ <strong>Experiencia:</strong> ${expLabel}</li>
+    <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0A0E1A; color: #FFFFFF; padding: 2rem; border-radius: 12px;">
+      <h2 style="color: #10B981; margin-top: 0;">¡Hola ${lead.fullName.split(" ")[0]}!</h2>
+      <p style="line-height: 1.6;">Gracias por registrarte. Tu interés en aprender cripto <strong>de forma responsable</strong> es el primer paso correcto.</p>
+      ${ctaHtml}
+      <h3 style="color: #FFFFFF; margin-top: 1.75rem; font-size: 1.05rem;">Qué viene ahora</h3>
+      <ul style="list-style: none; padding: 0; color: #D1D5DB; line-height: 1.7;">
+        <li>1. Lee la guía con calma. No tienes que aplicarlo todo de golpe.</li>
+        <li>2. Recibirás contenido educativo adicional en los próximos días.</li>
+        <li>3. Si tienes dudas, responde a este correo — lo leo personalmente.</li>
       </ul>
-      <p style="margin-top: 1.5rem;">Diego revisará tu perfil y te contactará en las próximas <strong>24 horas</strong> para agendar tu primera sesión gratuita.</p>
       <hr style="border: 1px solid rgba(255,255,255,0.1); margin: 1.5rem 0;" />
-      <p style="color: #9CA3AF; font-size: 0.875rem;">¿Preguntas? Encuéntranos en Instagram y LinkedIn.</p>
+      <p style="color: #6B7280; font-size: 0.8125rem; line-height: 1.6;">
+        <strong>Aviso:</strong> El contenido es exclusivamente educativo. No constituye asesoría financiera ni promesa de rentabilidad.
+        Invertir en cripto implica riesgos. Nunca operes con dinero que no puedas permitirte perder.
+      </p>
     </div>
   `;
 
@@ -95,7 +107,7 @@ export async function sendLeadConfirmation(lead: LeadData): Promise<{ success: b
         apiKey,
         from: fromEmail,
         to: lead.email,
-        subject: "Recibimos tu evaluación — Diego Maravi te contactará pronto",
+        subject: "Tu guía cripto está en camino",
         html: htmlBody,
     });
 }
@@ -134,7 +146,6 @@ async function sendEmailWithRetry(
                 return { success: true, providerId: data.id };
             }
 
-            // No reintentar errores 4xx (excepto 429)
             if (res.status >= 400 && res.status < 500 && res.status !== 429) {
                 const errorText = await res.text().catch(() => "");
                 console.error(`[email] Error ${res.status}: ${errorText}`);
@@ -145,7 +156,7 @@ async function sendEmailWithRetry(
         }
 
         if (attempt < maxRetries) {
-            const delay = Math.pow(2, attempt) * 500; // 1s, 2s, 4s
+            const delay = Math.pow(2, attempt) * 500;
             await new Promise((r) => setTimeout(r, delay));
         }
     }

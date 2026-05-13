@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { leadSchema } from "@/lib/validations";
+import { leadSchema, normalizeWhatsapp } from "@/lib/validations";
 import { getSupabaseClient } from "@/lib/supabase";
 import { createOrUpdateHubspotContact } from "@/lib/hubspot";
 import { processLeadWorkflow } from "@/lib/workflows/processLead";
+import { LEAD_SOURCE, LEAD_FUNNEL_STAGE } from "../../../../config/form-options";
 import crypto from "crypto";
 
 // Rate limiting en memoria (por IP, ventana de 10 min)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 const RATE_LIMIT_MAX = 5;
-const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutos
-const DEDUP_WINDOW_MS = 10 * 60 * 1000; // 10 minutos
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const DEDUP_WINDOW_MS = 10 * 60 * 1000;
 
 function hashSHA256(value: string): string {
     return crypto.createHash("sha256").update(value).digest("hex");
@@ -69,8 +70,12 @@ export async function POST(request: NextRequest) {
         }
 
         // --- Honeypot check ---
-        if (typeof body === "object" && body !== null && "website" in body && (body as Record<string, unknown>).website) {
-            // Bot detectado — responder 200 silenciosamente sin persistir
+        if (
+            typeof body === "object" &&
+            body !== null &&
+            "website" in body &&
+            (body as Record<string, unknown>).website
+        ) {
             console.log(JSON.stringify({ traceId, event: "honeypot_triggered", ipHash }));
             return NextResponse.json({ message: "ok" });
         }
@@ -82,36 +87,57 @@ export async function POST(request: NextRequest) {
                 field: e.path.join("."),
                 message: e.message,
             }));
-            return NextResponse.json({ error: "Validación fallida", fields: fieldErrors }, { status: 400 });
+            return NextResponse.json(
+                { error: "Validación fallida", fields: fieldErrors },
+                { status: 400 }
+            );
         }
 
-        const { name, email, goal, risk_profile, experience } = parsed.data;
+        const {
+            fullName,
+            email,
+            whatsapp,
+            country,
+            cryptoExperience,
+            learningInterest,
+            acceptedRiskDisclaimer,
+        } = parsed.data;
+
         const normalizedEmail = email.toLowerCase().trim();
+        const normalizedWhatsapp = normalizeWhatsapp(whatsapp);
         const emailHash = hashSHA256(normalizedEmail);
 
         console.log(`[Leads] Recibido: ${emailHash}`);
 
         // --- Obtener UTM params ---
         const url = new URL(request.url);
-        const utmSource = url.searchParams.get("utm_source") || request.headers.get("referer")?.split("?")[0] || null;
+        const utmSource =
+            url.searchParams.get("utm_source") ||
+            request.headers.get("referer")?.split("?")[0] ||
+            null;
         const utmMedium = url.searchParams.get("utm_medium") || null;
         const utmCampaign = url.searchParams.get("utm_campaign") || null;
 
         // --- PRIORIDAD 1: HubSpot (bloqueante) ---
         console.log(`[HubSpot] Intentando crear/actualizar: ${emailHash}`);
         const hubspotResult = await createOrUpdateHubspotContact({
-            name,
+            fullName,
             email: normalizedEmail,
-            goal,
-            risk_profile,
-            experience,
-            source: utmSource || "landing_page",
+            whatsapp: normalizedWhatsapp,
+            country,
+            cryptoExperience,
+            learningInterest,
+            acceptedRiskDisclaimer,
+            source: utmSource || LEAD_SOURCE,
         });
 
         if (!hubspotResult.success) {
             console.error(`[HubSpot] Fallo: ${hubspotResult.error} - Email: ${emailHash}`);
             return NextResponse.json(
-                { error: "Hubo un problema al enviar. Por favor, inténtalo en unos minutos." },
+                {
+                    error:
+                        "Hubo un problema al enviar tu registro. Inténtalo nuevamente en unos segundos.",
+                },
                 { status: 503 }
             );
         }
@@ -124,14 +150,13 @@ export async function POST(request: NextRequest) {
             supabase = getSupabaseClient();
         } catch {
             console.error(JSON.stringify({ traceId, event: "supabase_unavailable" }));
-            // HubSpot ya funcionó, así que respondemos success al cliente
             return NextResponse.json(
-                { message: "¡Evaluación registrada con éxito!" },
+                { message: "¡Listo! Te enviaremos la guía a tu correo." },
                 { status: 201 }
             );
         }
 
-        // --- Check duplicado (mismo email en últimos 10 min) ---
+        // --- Dedupe (mismo email en últimos 10 min) ---
         const dedupCutoff = new Date(Date.now() - DEDUP_WINDOW_MS).toISOString();
         const { data: recentLead } = await supabase
             .from("leads")
@@ -146,12 +171,15 @@ export async function POST(request: NextRequest) {
         if (recentLead) {
             console.log(JSON.stringify({ traceId, event: "duplicate_within_window", emailHash }));
             return NextResponse.json(
-                { message: "Ya recibimos tu formulario. Diego te contactará pronto." },
+                {
+                    message:
+                        "Ya recibimos tu registro. Revisa tu correo en los próximos minutos.",
+                },
                 { status: 200 }
             );
         }
 
-        // --- Check idempotencia (mismo email fuera de ventana) ---
+        // --- Idempotencia (mismo email fuera de ventana) ---
         const { data: existingLead } = await supabase
             .from("leads")
             .select("id")
@@ -168,14 +196,17 @@ export async function POST(request: NextRequest) {
                 const { data: insertedLead, error: insertError } = await supabase
                     .from("leads")
                     .insert({
-                        name,
+                        name: fullName,
                         email: normalizedEmail,
                         email_hash: emailHash,
-                        goal,
-                        risk_profile,
-                        experience,
+                        whatsapp: normalizedWhatsapp,
+                        country,
+                        crypto_experience: cryptoExperience,
+                        learning_interest: learningInterest,
+                        accepted_risk_disclaimer: acceptedRiskDisclaimer,
+                        funnel_stage: LEAD_FUNNEL_STAGE,
                         is_duplicate: isDuplicate,
-                        source: utmSource,
+                        source: utmSource || LEAD_SOURCE,
                         utm_medium: utmMedium,
                         utm_campaign: utmCampaign,
                         ip_hash: ipHash,
@@ -184,46 +215,60 @@ export async function POST(request: NextRequest) {
                     .single();
 
                 if (insertError) {
-                    console.error(`[Supabase] insert_failed pero no bloquea HubSpot: ${insertError.message}`);
+                    console.error(
+                        `[Supabase] insert_failed (no bloquea HubSpot): ${insertError.message}`
+                    );
                     return null;
                 }
 
-                console.log(JSON.stringify({
-                    traceId,
-                    event: isDuplicate ? "lead_duplicate_created" : "lead_created",
-                    emailHash,
-                    leadId: insertedLead.id,
-                }));
+                console.log(
+                    JSON.stringify({
+                        traceId,
+                        event: isDuplicate ? "lead_duplicate_created" : "lead_created",
+                        emailHash,
+                        leadId: insertedLead.id,
+                    })
+                );
 
                 return insertedLead;
             } catch (err) {
-                console.error(`[Supabase] insert_failed pero no bloquea HubSpot: ${String(err)}`);
+                console.error(`[Supabase] insert_failed: ${String(err)}`);
                 return null;
             }
         };
 
         // Ejecutar Supabase y workflow en background (sin await)
-        supabaseInsert().then((insertedLead) => {
-            if (insertedLead && !isDuplicate) {
-                processLeadWorkflow(insertedLead.id, {
-                    name,
-                    email: normalizedEmail,
-                    emailHash,
-                    goal,
-                    risk_profile,
-                    experience,
-                    source: utmSource || "landing_page",
-                }, traceId).catch((err) => {
-                    console.error(JSON.stringify({ traceId, event: "workflow_error", error: String(err) }));
-                });
-            }
-        }).catch((err) => {
-            console.error(`[Background] Error en cadena Supabase: ${String(err)}`);
-        });
+        supabaseInsert()
+            .then((insertedLead) => {
+                if (insertedLead && !isDuplicate) {
+                    processLeadWorkflow(
+                        insertedLead.id,
+                        {
+                            fullName,
+                            email: normalizedEmail,
+                            emailHash,
+                            whatsapp: normalizedWhatsapp,
+                            country,
+                            cryptoExperience,
+                            learningInterest,
+                            acceptedRiskDisclaimer,
+                            source: utmSource || LEAD_SOURCE,
+                        },
+                        traceId
+                    ).catch((err) => {
+                        console.error(
+                            JSON.stringify({ traceId, event: "workflow_error", error: String(err) })
+                        );
+                    });
+                }
+            })
+            .catch((err) => {
+                console.error(`[Background] Error en cadena Supabase: ${String(err)}`);
+            });
 
         // Responder inmediatamente (HubSpot ya tuvo éxito)
         return NextResponse.json(
-            { message: "¡Evaluación registrada con éxito!" },
+            { message: "¡Listo! Te enviaremos la guía a tu correo." },
             { status: 201 }
         );
     } catch (err) {
@@ -234,4 +279,3 @@ export async function POST(request: NextRequest) {
         );
     }
 }
-

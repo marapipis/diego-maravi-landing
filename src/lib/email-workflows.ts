@@ -1,12 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendCoachNotification, sendLeadConfirmation } from "./email";
 
-interface LeadEmailData {
-    name: string;
+export interface LeadEmailData {
+    fullName: string;
     email: string;
-    goal: string;
-    risk_profile: string;
-    experience: string;
+    whatsapp: string;
+    country: string;
+    cryptoExperience: string;
+    learningInterest: string;
 }
 
 /**

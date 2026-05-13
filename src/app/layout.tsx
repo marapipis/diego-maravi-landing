@@ -11,22 +11,23 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Diego Maravi · Coach Financiero — Evaluación Gratuita",
+  title: "Aprende a invertir en cripto sin perder tu dinero — Guía gratuita",
   description:
-    "Construye tu patrimonio con la guía de un coach financiero. Completa tu evaluación financiera gratuita y da el primer paso hacia tu libertad financiera.",
+    "Guía gratuita de educación cripto: aprende a entender el mercado, gestionar el riesgo y dar tus primeros pasos con criterio. Sin promesas de rentabilidad.",
   keywords: [
-    "coach financiero",
-    "inversiones",
-    "libertad financiera",
-    "asesoría financiera",
-    "patrimonio",
+    "guía cripto",
+    "aprender cripto",
+    "criptomonedas",
+    "educación cripto",
+    "Bitunix",
+    "gestión de riesgo",
   ],
   openGraph: {
-    title: "Diego Maravi · Coach Financiero",
+    title: "Aprende a invertir en cripto sin perder tu dinero",
     description:
-      "Evaluación financiera gratuita. Da el primer paso hacia tu libertad financiera.",
+      "Guía gratuita de educación cripto: entiende el mercado, gestiona el riesgo y da tus primeros pasos con criterio.",
     url: process.env.NEXT_PUBLIC_SITE_URL || "https://www.diegomaravi.com",
-    siteName: "Diego Maravi",
+    siteName: "Diego Maraví",
     type: "website",
     locale: "es_PE",
   },
@@ -43,7 +44,7 @@ export default function RootLayout({
         <SkipLink />
         <noscript>
           <div style={{
-            background: "#0B1120",
+            background: "#0A0E1A",
             color: "#FFFFFF",
             textAlign: "center",
             padding: "2rem",

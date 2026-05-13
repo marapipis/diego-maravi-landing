@@ -1,15 +1,24 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+    COUNTRY_LABELS,
+    CRYPTO_EXPERIENCE_LABELS,
+    LEARNING_INTEREST_LABELS,
+    LEAD_SOURCE,
+    LEAD_FUNNEL_STAGE,
+} from "../../config/form-options";
 
-interface HubSpotContactData {
-    name: string;
+export interface HubSpotContactData {
+    fullName: string;
     email: string;
-    goal?: string;
-    risk_profile?: string;
-    experience?: string;
+    whatsapp: string;
+    country: string;
+    cryptoExperience: string;
+    learningInterest: string;
+    acceptedRiskDisclaimer: boolean;
     source?: string;
 }
 
-interface HubSpotResult {
+export interface HubSpotResult {
     success: boolean;
     contactId?: string;
     error?: string;
@@ -19,68 +28,59 @@ function getAccessToken(): string | undefined {
     return process.env.HUBSPOT_PRIVATE_APP_TOKEN || process.env.HUBSPOT_ACCESS_TOKEN;
 }
 
-function buildContactProperties(data: HubSpotContactData): Record<string, string> {
-    const nameParts = data.name.trim().split(" ");
-    const firstname = nameParts[0] || "";
-    const lastname = nameParts.slice(1).join(" ") || "";
+function splitName(fullName: string): { firstname: string; lastname: string } {
+    const parts = fullName.trim().split(/\s+/);
+    if (parts.length === 1) return { firstname: parts[0], lastname: "" };
+    return {
+        firstname: parts[0],
+        lastname: parts.slice(1).join(" "),
+    };
+}
 
-    const properties: Record<string, string> = {
+// Solo propiedades estándar (evita errores "property does not exist").
+function buildStandardProperties(data: HubSpotContactData): Record<string, string> {
+    const { firstname, lastname } = splitName(data.fullName);
+    const countryLabel = COUNTRY_LABELS[data.country] || data.country;
+
+    return {
         email: data.email.toLowerCase().trim(),
         firstname,
         lastname,
+        phone: data.whatsapp,
+        country: countryLabel,
+        hs_lead_status: "NEW",
+        lead_source: data.source || LEAD_SOURCE,
     };
-
-    return properties;
 }
 
-// --- Existing functions (preserved for backward compatibility) ---
+// Cuerpo de la nota anexa: campos cripto consolidados (los que no son estándar).
+function buildLeadNoteHtml(data: HubSpotContactData): string {
+    const expLabel = CRYPTO_EXPERIENCE_LABELS[data.cryptoExperience] || data.cryptoExperience;
+    const interestLabel = LEARNING_INTEREST_LABELS[data.learningInterest] || data.learningInterest;
+    const countryLabel = COUNTRY_LABELS[data.country] || data.country;
 
-export async function sendToHubSpot(data: HubSpotContactData): Promise<HubSpotResult> {
-    const accessToken = getAccessToken();
-
-    if (!accessToken) {
-        console.error("[HubSpot] No se encontró HUBSPOT_ACCESS_TOKEN");
-        return { success: false, error: "HubSpot no configurado" };
-    }
-
-    try {
-        const properties = buildContactProperties(data);
-
-        const response = await fetch("https://api.hubapi.com/crm/v3/objects/contacts", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify({ properties }),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-
-            if (errorData.category === "CONFLICT") {
-                console.log("[HubSpot] Contacto ya existe, actualizando");
-                return updateExistingContact(data);
-            }
-
-            console.error("[HubSpot] Error creando contacto:", errorData);
-            return { success: false, error: errorData.message || "Error de HubSpot" };
-        }
-
-        const result = await response.json();
-        console.log("[HubSpot] Contacto creado:", result.id);
-        return { success: true, contactId: result.id };
-    } catch (error) {
-        console.error("[HubSpot] Error de conexión:", error);
-        return { success: false, error: String(error) };
-    }
+    return `
+<p><strong>Lead nuevo desde landing cripto Bitunix</strong></p>
+<ul>
+  <li><strong>Fuente:</strong> ${data.source || LEAD_SOURCE}</li>
+  <li><strong>Etapa del funnel:</strong> ${LEAD_FUNNEL_STAGE}</li>
+  <li><strong>WhatsApp:</strong> ${data.whatsapp}</li>
+  <li><strong>País:</strong> ${countryLabel}</li>
+  <li><strong>Experiencia con cripto:</strong> ${expLabel}</li>
+  <li><strong>Qué quiere aprender primero:</strong> ${interestLabel}</li>
+  <li><strong>Aceptó disclaimer de riesgo:</strong> ${data.acceptedRiskDisclaimer ? "Sí" : "No"}</li>
+</ul>
+`.trim();
 }
 
-export async function searchAndUpdateHubSpotContact(data: HubSpotContactData): Promise<HubSpotResult> {
-    const accessToken = getAccessToken();
+// --- HubSpot REST helpers ---
 
+async function searchContactByEmail(
+    accessToken: string,
+    email: string
+): Promise<string | null> {
     try {
-        const searchResponse = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+        const res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -91,103 +91,101 @@ export async function searchAndUpdateHubSpotContact(data: HubSpotContactData): P
                     filters: [{
                         propertyName: "email",
                         operator: "EQ",
-                        value: data.email.toLowerCase().trim(),
+                        value: email.toLowerCase().trim(),
+                    }],
+                }],
+                limit: 1,
+            }),
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data?.results?.[0]?.id ?? null;
+    } catch {
+        return null;
+    }
+}
+
+async function patchContact(
+    accessToken: string,
+    contactId: string,
+    properties: Record<string, string>
+): Promise<boolean> {
+    try {
+        const patchProps = { ...properties };
+        delete patchProps.email; // email es identity, no se patcha
+        const res = await fetch(
+            `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`,
+            {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${accessToken}`,
+                },
+                body: JSON.stringify({ properties: patchProps }),
+            }
+        );
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+
+// Adjunta una nota al contacto (con los campos custom cripto consolidados).
+async function attachNoteToContact(
+    accessToken: string,
+    contactId: string,
+    html: string
+): Promise<void> {
+    try {
+        const res = await fetch("https://api.hubapi.com/crm/v3/objects/notes", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+                properties: {
+                    hs_note_body: html,
+                    hs_timestamp: Date.now(),
+                },
+                associations: [{
+                    to: { id: contactId },
+                    types: [{
+                        associationCategory: "HUBSPOT_DEFINED",
+                        associationTypeId: 202, // contact ↔ note
                     }],
                 }],
             }),
         });
-
-        if (!searchResponse.ok) {
-            return { success: false, error: "Error buscando contacto" };
+        if (!res.ok) {
+            const errText = await res.text().catch(() => "");
+            console.error("[HubSpot] No se pudo adjuntar la nota:", errText);
         }
-
-        const searchResult = await searchResponse.json();
-
-        if (searchResult.total > 0) {
-            const contactId = searchResult.results[0].id;
-            console.log("[HubSpot] Contacto existente encontrado:", contactId);
-            return { success: true, contactId };
-        }
-
-        return { success: false, error: "Contacto no encontrado" };
-    } catch (error) {
-        return { success: false, error: String(error) };
+    } catch (err) {
+        console.error("[HubSpot] Error adjuntando nota:", err);
     }
 }
 
-export async function sendQuizLeadToHubSpot(data: {
-    name: string;
-    email: string;
-    answers?: Record<string, unknown>;
-}): Promise<HubSpotResult> {
-    const accessToken = getAccessToken();
-
-    if (!accessToken) {
-        console.error("[HubSpot] No se encontró HUBSPOT_ACCESS_TOKEN");
-        return { success: false, error: "HubSpot no configurado" };
-    }
-
-    try {
-        const nameParts = data.name.trim().split(" ");
-        const firstname = nameParts[0] || "";
-        const lastname = nameParts.slice(1).join(" ") || "";
-
-        const properties: Record<string, string> = {
-            email: data.email.toLowerCase().trim(),
-            firstname,
-            lastname,
-        };
-
-        const response = await fetch("https://api.hubapi.com/crm/v3/objects/contacts", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify({ properties }),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-
-            if (errorData.category === "CONFLICT") {
-                return updateExistingContact({
-                    name: data.name,
-                    email: data.email,
-                    source: "quiz_funnel",
-                });
-            }
-
-            console.error("[HubSpot] Error creando quiz lead:", errorData);
-            return { success: false, error: errorData.message || "Error de HubSpot" };
-        }
-
-        const result = await response.json();
-        console.log("[HubSpot] Quiz lead creado:", result.id);
-        return { success: true, contactId: result.id };
-    } catch (error) {
-        console.error("[HubSpot] Error de conexión (quiz):", error);
-        return { success: false, error: String(error) };
-    }
-}
-
-// --- New functions ---
+// --- Public API ---
 
 /**
- * Create or update a HubSpot contact. Tries POST first; on conflict,
- * searches for the existing contact and PATCHes it with updated properties.
+ * Crea o actualiza un contacto en HubSpot usando solo propiedades estándar.
+ * Adjunta una nota con los campos cripto consolidados.
  */
-export async function createOrUpdateHubspotContact(data: HubSpotContactData): Promise<HubSpotResult> {
+export async function createOrUpdateHubspotContact(
+    data: HubSpotContactData
+): Promise<HubSpotResult> {
     const accessToken = getAccessToken();
-
     if (!accessToken) {
+        console.error("[HubSpot] Falta HUBSPOT_PRIVATE_APP_TOKEN");
         return { success: false, error: "HubSpot no configurado" };
     }
 
-    try {
-        const properties = buildContactProperties(data);
+    const properties = buildStandardProperties(data);
+    let contactId: string | undefined;
 
-        const response = await fetch("https://api.hubapi.com/crm/v3/objects/contacts", {
+    try {
+        const createRes = await fetch("https://api.hubapi.com/crm/v3/objects/contacts", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -196,30 +194,52 @@ export async function createOrUpdateHubspotContact(data: HubSpotContactData): Pr
             body: JSON.stringify({ properties }),
         });
 
-        if (response.ok) {
-            const result = await response.json();
-            return { success: true, contactId: result.id };
+        if (createRes.ok) {
+            const result = await createRes.json();
+            contactId = result.id;
+        } else {
+            const errorData = await createRes.json().catch(() => ({}));
+            const isConflict =
+                errorData?.category === "CONFLICT" ||
+                createRes.status === 409 ||
+                (typeof errorData?.message === "string" && errorData.message.includes("already exists"));
+
+            if (isConflict) {
+                const existingId = await searchContactByEmail(accessToken, data.email);
+                if (!existingId) {
+                    return { success: false, error: "Conflicto pero no se encontró el contacto" };
+                }
+                contactId = existingId;
+                await patchContact(accessToken, contactId, properties);
+            } else {
+                console.error("[HubSpot] Error creando contacto:", errorData);
+                return {
+                    success: false,
+                    error: errorData?.message || `HTTP ${createRes.status}`,
+                };
+            }
         }
-
-        const errorData = await response.json().catch(() => ({}));
-
-        if (errorData.category === "CONFLICT") {
-            return updateExistingContact(data);
-        }
-
-        return { success: false, error: errorData.message || "Error de HubSpot" };
-    } catch (error) {
-        return { success: false, error: String(error) };
+    } catch (err) {
+        return { success: false, error: String(err) };
     }
+
+    if (!contactId) {
+        return { success: false, error: "Sin contactId" };
+    }
+
+    // Adjuntar la nota (best-effort, no bloquea el éxito del lead).
+    await attachNoteToContact(accessToken, contactId, buildLeadNoteHtml(data));
+
+    return { success: true, contactId };
 }
 
 /**
- * Full sync: create/update contact in HubSpot and log the result to contact_sync_log.
+ * Sync completo: crea/actualiza en HubSpot y registra el resultado en contact_sync_log.
  */
 export async function syncLeadToHubspot(
     supabase: SupabaseClient,
     leadId: string,
-    data: HubSpotContactData,
+    data: HubSpotContactData
 ): Promise<HubSpotResult> {
     const result = await createOrUpdateHubspotContact(data);
 
@@ -235,46 +255,4 @@ export async function syncLeadToHubspot(
     }
 
     return result;
-}
-
-// --- Internal helpers ---
-
-async function updateExistingContact(data: HubSpotContactData): Promise<HubSpotResult> {
-    const accessToken = getAccessToken();
-
-    try {
-        // First, find the existing contact
-        const searchResult = await searchAndUpdateHubSpotContact(data);
-        if (!searchResult.success || !searchResult.contactId) {
-            return searchResult;
-        }
-
-        // Then PATCH it with updated properties
-        const properties = buildContactProperties(data);
-        delete properties.email; // email is the identity key, not updatable via PATCH
-
-        const patchResponse = await fetch(
-            `https://api.hubapi.com/crm/v3/objects/contacts/${searchResult.contactId}`,
-            {
-                method: "PATCH",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${accessToken}`,
-                },
-                body: JSON.stringify({ properties }),
-            },
-        );
-
-        if (!patchResponse.ok) {
-            const errorData = await patchResponse.json().catch(() => ({}));
-            console.error("[HubSpot] Error actualizando contacto:", errorData);
-            // Still return success with ID since the contact exists
-            return { success: true, contactId: searchResult.contactId };
-        }
-
-        console.log("[HubSpot] Contacto actualizado:", searchResult.contactId);
-        return { success: true, contactId: searchResult.contactId };
-    } catch (error) {
-        return { success: false, error: String(error) };
-    }
 }
