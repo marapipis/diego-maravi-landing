@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import LeadForm from "./LeadForm";
 import QuizFunnel from "./QuizFunnel";
 
@@ -30,44 +29,6 @@ export default function Hero() {
                         position: "relative",
                     }}
                 >
-                    {/* Coach photo — absolute en desktop, decorativa */}
-                    <div
-                        className="coach-photo-container"
-                        style={{
-                            position: "absolute",
-                            top: "5rem",
-                            right: "-2rem",
-                            width: "360px",
-                            height: "520px",
-                            zIndex: 1,
-                            pointerEvents: "none",
-                        }}
-                        aria-hidden="true"
-                    >
-                        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "60px" }}>
-                            <div style={{ position: "relative", width: 0, height: 0 }}>
-                                <div style={{ position: "absolute", top: "-200px", left: "-200px", width: "400px", height: "400px", borderRadius: "50%", border: "1px solid rgba(16,185,129,0.08)" }} />
-                                <div style={{ position: "absolute", top: "-260px", left: "-260px", width: "520px", height: "520px", borderRadius: "50%", border: "1px solid rgba(16,185,129,0.04)" }} />
-                                <div style={{ position: "absolute", top: "-90px", left: "-90px", width: "180px", height: "180px", borderRadius: "50%", background: "radial-gradient(circle, rgba(16,185,129,0.18) 0%, transparent 70%)" }} />
-                            </div>
-                        </div>
-                        <div style={{ position: "relative", width: "100%", height: "100%" }}>
-                            <Image
-                                src="/coach-diego.png"
-                                alt="Diego Maraví"
-                                fill
-                                style={{
-                                    objectFit: "contain",
-                                    objectPosition: "top center",
-                                    filter: "drop-shadow(0 0 40px rgba(16,185,129,0.25)) drop-shadow(0 0 80px rgba(16,185,129,0.10))",
-                                }}
-                                sizes="(max-width: 1024px) 240px, 360px"
-                                priority
-                                quality={85}
-                            />
-                            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "100px", background: "linear-gradient(to top, var(--brand-bg) 0%, transparent 100%)" }} />
-                        </div>
-                    </div>
 
                     {/* Content grid */}
                     <div
@@ -112,7 +73,7 @@ export default function Hero() {
                                 }}
                             >
                                 Aprende a invertir en cripto{" "}
-                                <span style={{ color: "#10B981" }}>sin perder tu dinero</span>
+                                <span style={{ color: "#10B981" }}>sin tomar riesgos innecesarios</span>
                             </h1>
 
                             <p
