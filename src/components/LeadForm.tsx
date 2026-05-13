@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import Image from "next/image";
 import { validateField, type LeadFormState } from "@/lib/validations";
 import {
     COUNTRY_OPTIONS,
@@ -184,66 +183,6 @@ export default function LeadForm({ formId = "lead-form", compact = false }: Lead
                     Recibirás contenido educativo gratuito. No compartiremos tu información con
                     terceros sin tu consentimiento.
                 </p>
-            </div>
-
-            {/* Coach photo — centrada dentro de la tarjeta */}
-            <div
-                style={{
-                    position: "relative",
-                    width: "100%",
-                    height: "240px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginBottom: "2rem",
-                }}
-            >
-                {/* Decorative rings */}
-                <div
-                    style={{
-                        position: "absolute",
-                        inset: 0,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                    }}
-                >
-                    <div
-                        style={{
-                            position: "absolute",
-                            width: "180px",
-                            height: "180px",
-                            borderRadius: "50%",
-                            border: "1px solid rgba(16,185,129,0.12)",
-                        }}
-                    />
-                    <div
-                        style={{
-                            position: "absolute",
-                            width: "260px",
-                            height: "260px",
-                            borderRadius: "50%",
-                            border: "1px solid rgba(16,185,129,0.06)",
-                        }}
-                    />
-                </div>
-
-                {/* Image */}
-                <div style={{ position: "relative", width: "160px", height: "240px", zIndex: 2 }}>
-                    <Image
-                        src="/coach-diego.png"
-                        alt="Diego Maraví - Coach"
-                        fill
-                        style={{
-                            objectFit: "contain",
-                            objectPosition: "center",
-                            filter: "drop-shadow(0 0 30px rgba(16,185,129,0.2))",
-                        }}
-                        sizes="160px"
-                        priority
-                        quality={85}
-                    />
-                </div>
             </div>
 
             {serverError && (
