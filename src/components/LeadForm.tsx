@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { validateField, type LeadFormState } from "@/lib/validations";
 import {
     COUNTRY_OPTIONS,
     CRYPTO_EXPERIENCE_OPTIONS,
     LEARNING_INTEREST_OPTIONS,
 } from "../../config/form-options";
-import SuccessMessage from "./SuccessMessage";
 
 type FieldErrors = Partial<Record<keyof LeadFormState, string | null>>;
 
@@ -33,6 +33,7 @@ export default function LeadForm({ formId = "lead-form", compact = false }: Lead
     const [serverError, setServerError] = useState<string | null>(null);
     const lastSubmitRef = useRef<number>(0);
     const honeypotRef = useRef<HTMLInputElement>(null);
+    const router = useRouter();
 
     const handleChange = useCallback(
         (field: keyof LeadFormState, value: string | boolean) => {
@@ -105,7 +106,7 @@ export default function LeadForm({ formId = "lead-form", compact = false }: Lead
             clearTimeout(timeout);
 
             if (res.ok) {
-                setStatus("success");
+                router.push("/gracias");
             } else if (res.status === 429) {
                 setServerError("Demasiados intentos. Espera unos minutos.");
                 setStatus("error");
@@ -137,14 +138,6 @@ export default function LeadForm({ formId = "lead-form", compact = false }: Lead
             setStatus("error");
         }
     };
-
-    if (status === "success") {
-        return (
-            <div className="glass-card" style={{ padding: compact ? "1.5rem" : "2rem" }}>
-                <SuccessMessage />
-            </div>
-        );
-    }
 
     const labelStyle: React.CSSProperties = {
         display: "block",

@@ -4,9 +4,19 @@
 
 ▲ Next.js 16.1.6 (Turbopack)
 - Local:         http://localhost:3000
-- Network:       http://100.96.1.24:3000
+- Network:       http://192.168.18.4:3000
 - Environments: .env.local, .env
 
 ✓ Starting...
 ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
-✓ Ready in 912ms
+✓ Ready in 943ms
+Image with src "/coach-diego.png" is using quality "85" which is not configured in images.qualities [75]. Please update your config to [75, 85].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+ GET / 200 in 2.6s (compile: 2.3s, proxy.ts: 57ms, render: 258ms)
+ GET / 200 in 134ms (compile: 9ms, proxy.ts: 7ms, render: 119ms)
+ GET / 200 in 80ms (compile: 4ms, proxy.ts: 4ms, render: 73ms)
+ GET / 200 in 73ms (compile: 3ms, proxy.ts: 4ms, render: 66ms)
+[Leads] Received: bbca0820dea42199f4905cffb8d0be4a51a3d47855c11a149ee223fe454f5843 — trace=781b6583-6718-43f8-a1d0-db42deef0983
+[Supabase] insert_failed: Error: TypeError: fetch failed — bbca0820dea42199f4905cffb8d0be4a51a3d47855c11a149ee223fe454f5843
+ POST /api/leads 500 in 238ms (compile: 151ms, proxy.ts: 5ms, render: 83ms)
+[?25h
