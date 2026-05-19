@@ -16,6 +16,11 @@ export interface HubSpotContactData {
     learningInterest: string;
     acceptedRiskDisclaimer: boolean;
     source?: string;
+    utmSource?: string | null;
+    utmMedium?: string | null;
+    utmCampaign?: string | null;
+    utmContent?: string | null;
+    utmTerm?: string | null;
 }
 
 export interface HubSpotResult {
@@ -60,6 +65,17 @@ function buildLeadNoteHtml(data: HubSpotContactData): string {
     const countryLabel = COUNTRY_LABELS[data.country] || data.country;
     const fecha = new Date().toLocaleString("es-PE", { timeZone: "America/Lima" });
 
+    const na = "no especificado";
+    const utmBlock = `
+<p><strong>Fuente del lead (UTMs)</strong></p>
+<ul>
+  <li><strong>UTM Source:</strong> ${data.utmSource || na}</li>
+  <li><strong>UTM Medium:</strong> ${data.utmMedium || na}</li>
+  <li><strong>UTM Campaign:</strong> ${data.utmCampaign || na}</li>
+  <li><strong>UTM Content:</strong> ${data.utmContent || na}</li>
+  <li><strong>UTM Term:</strong> ${data.utmTerm || na}</li>
+</ul>`;
+
     return `
 <p><strong>Lead nuevo desde landing cripto Bitunix</strong></p>
 <ul>
@@ -72,6 +88,7 @@ function buildLeadNoteHtml(data: HubSpotContactData): string {
   <li><strong>Aceptó disclaimer de riesgo:</strong> ${data.acceptedRiskDisclaimer ? "Sí" : "No"}</li>
   <li><strong>Fecha de registro:</strong> ${fecha} (hora Lima)</li>
 </ul>
+${utmBlock}
 `.trim();
 }
 

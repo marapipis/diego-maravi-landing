@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { validateField, type LeadFormState } from "@/lib/validations";
 import {
@@ -33,7 +33,21 @@ export default function LeadForm({ formId = "lead-form", compact = false }: Lead
     const [serverError, setServerError] = useState<string | null>(null);
     const lastSubmitRef = useRef<number>(0);
     const honeypotRef = useRef<HTMLInputElement>(null);
+    const utmRef = useRef<Record<string, string>>({});
     const router = useRouter();
+
+    // Captura UTMs de la URL de la landing al montar el componente.
+    // Se almacenan en un ref para no causar re-renders y se incluyen en el POST.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const utmKeys = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"];
+        const captured: Record<string, string> = {};
+        for (const key of utmKeys) {
+            const val = params.get(key);
+            if (val) captured[key] = val.slice(0, 200); // sanity limit
+        }
+        utmRef.current = captured;
+    }, []);
 
     const handleChange = useCallback(
         (field: keyof LeadFormState, value: string | boolean) => {
@@ -99,7 +113,7 @@ export default function LeadForm({ formId = "lead-form", compact = false }: Lead
             const res = await fetch("/api/leads", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(formData),
+                body: JSON.stringify({ ...formData, ...utmRef.current }),
                 signal: controller.signal,
             });
 

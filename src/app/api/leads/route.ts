@@ -60,6 +60,11 @@ interface LeadIntegrationsParams {
     learningInterest: string;
     acceptedRiskDisclaimer: boolean;
     source: string;
+    utmSource: string | null;
+    utmMedium: string | null;
+    utmCampaign: string | null;
+    utmContent: string | null;
+    utmTerm: string | null;
 }
 
 async function runHubspotSync(p: LeadIntegrationsParams): Promise<IntegrationStatus> {
@@ -80,6 +85,11 @@ async function runHubspotSync(p: LeadIntegrationsParams): Promise<IntegrationSta
             learningInterest: p.learningInterest,
             acceptedRiskDisclaimer: p.acceptedRiskDisclaimer,
             source: p.source,
+            utmSource: p.utmSource,
+            utmMedium: p.utmMedium,
+            utmCampaign: p.utmCampaign,
+            utmContent: p.utmContent,
+            utmTerm: p.utmTerm,
         });
 
         if (result.success) {
@@ -133,6 +143,11 @@ async function runHubspotWebhook(p: LeadIntegrationsParams): Promise<Integration
                 cryptoExperience: p.cryptoExperience,
                 learningInterest: p.learningInterest,
                 source: p.source,
+                utmSource: p.utmSource,
+                utmMedium: p.utmMedium,
+                utmCampaign: p.utmCampaign,
+                utmContent: p.utmContent,
+                utmTerm: p.utmTerm,
                 funnelStage: LEAD_FUNNEL_STAGE,
                 createdAt: new Date().toISOString(),
             }),
@@ -350,14 +365,17 @@ export async function POST(request: NextRequest) {
         const normalizedWhatsapp = normalizeWhatsapp(whatsapp);
         const emailHash = hashSHA256(normalizedEmail);
 
-        // --- UTM ---
-        const url = new URL(request.url);
-        const utmSource =
-            url.searchParams.get("utm_source") ||
-            request.headers.get("referer")?.split("?")[0] ||
-            null;
-        const utmMedium = url.searchParams.get("utm_medium") || null;
-        const utmCampaign = url.searchParams.get("utm_campaign") || null;
+        // --- UTMs — capturados en el cliente desde window.location.search y enviados en el body ---
+        // NO los leemos de request.url porque el POST va a /api/leads sin query params.
+        const rawBody = body as Record<string, unknown>;
+        function safeUtm(val: unknown): string | null {
+            return typeof val === "string" && val.trim() ? val.trim().slice(0, 200) : null;
+        }
+        const utmSource   = safeUtm(rawBody.utm_source);
+        const utmMedium   = safeUtm(rawBody.utm_medium);
+        const utmCampaign = safeUtm(rawBody.utm_campaign);
+        const utmContent  = safeUtm(rawBody.utm_content);
+        const utmTerm     = safeUtm(rawBody.utm_term);
         const source = utmSource || LEAD_SOURCE;
 
         console.log(`[Leads] Received: ${emailHash} — trace=${traceId}`);
@@ -431,8 +449,11 @@ export async function POST(request: NextRequest) {
                     funnel_stage: LEAD_FUNNEL_STAGE,
                     is_duplicate: isDuplicate,
                     source,
+                    utm_source: utmSource,
                     utm_medium: utmMedium,
                     utm_campaign: utmCampaign,
+                    utm_content: utmContent,
+                    utm_term: utmTerm,
                     ip_hash: ipHash,
                 })
                 .select("id")
@@ -472,6 +493,11 @@ export async function POST(request: NextRequest) {
                   learningInterest,
                   acceptedRiskDisclaimer,
                   source,
+                  utmSource,
+                  utmMedium,
+                  utmCampaign,
+                  utmContent,
+                  utmTerm,
               });
 
         // ============================================================
