@@ -33,6 +33,11 @@ const nextConfig: NextConfig = {
         destination: "/?utm_source=whatsapp&utm_medium=status&utm_campaign=guia_cripto&utm_content=estado",
         permanent: false,
       },
+      {
+        source: "/facebook",
+        destination: "/?utm_source=facebook&utm_medium=social&utm_campaign=guia_cripto&utm_content=profile_link",
+        permanent: false,
+      },
     ];
   },
 };
