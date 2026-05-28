@@ -11,9 +11,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Aprende a invertir en cripto sin perder tu dinero — Guía gratuita",
+  title: "Guía gratuita cripto — Evita errores antes de operar | Diego Maraví",
   description:
-    "Guía gratuita de educación cripto: aprende a entender el mercado, gestionar el riesgo y dar tus primeros pasos con criterio. Sin promesas de rentabilidad.",
+    "Recibe una guía gratuita para entender exchanges, riesgo y errores comunes antes de comprar u operar cripto. Educación clara, sin promesas de rentabilidad.",
   keywords: [
     "guía cripto",
     "aprender cripto",
@@ -23,9 +23,9 @@ export const metadata: Metadata = {
     "gestión de riesgo",
   ],
   openGraph: {
-    title: "Aprende a invertir en cripto sin perder tu dinero",
+    title: "Guía gratuita cripto: evita errores antes de operar",
     description:
-      "Guía gratuita de educación cripto: entiende el mercado, gestiona el riesgo y da tus primeros pasos con criterio.",
+      "Aprende conceptos básicos, gestión de riesgo y errores comunes antes de comprar u operar cripto.",
     url: process.env.NEXT_PUBLIC_SITE_URL || "https://www.diegomaravi.com",
     siteName: "Diego Maraví",
     type: "website",

@@ -2,24 +2,26 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { validateField, type LeadFormState } from "@/lib/validations";
-import {
-    COUNTRY_OPTIONS,
-    CRYPTO_EXPERIENCE_OPTIONS,
-    LEARNING_INTEREST_OPTIONS,
-} from "../../config/form-options";
+import { validateField } from "@/lib/validations";
 
-type FieldErrors = Partial<Record<keyof LeadFormState, string | null>>;
+type SimpleField = "fullName" | "email" | "whatsapp";
+type SimpleFormState = Record<SimpleField, string>;
+type FieldErrors = Partial<Record<SimpleField, string | null>>;
 
-const initialState: LeadFormState = {
+const initialState: SimpleFormState = {
     fullName: "",
     email: "",
     whatsapp: "",
-    country: "",
-    cryptoExperience: "",
-    learningInterest: "",
-    acceptedRiskDisclaimer: false,
 };
+
+// Defaults seguros para los campos que ya no se piden en el formulario,
+// pero que el endpoint y el schema Zod siguen esperando.
+const HIDDEN_DEFAULTS = {
+    country: "OTHER",
+    cryptoExperience: "ninguna",
+    learningInterest: "fundamentos",
+    acceptedRiskDisclaimer: true,
+} as const;
 
 interface LeadFormProps {
     formId?: string;
@@ -27,7 +29,7 @@ interface LeadFormProps {
 }
 
 export default function LeadForm({ formId = "lead-form", compact = false }: LeadFormProps) {
-    const [formData, setFormData] = useState<LeadFormState>(initialState);
+    const [formData, setFormData] = useState<SimpleFormState>(initialState);
     const [errors, setErrors] = useState<FieldErrors>({});
     const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
     const [serverError, setServerError] = useState<string | null>(null);
@@ -36,29 +38,24 @@ export default function LeadForm({ formId = "lead-form", compact = false }: Lead
     const utmRef = useRef<Record<string, string>>({});
     const router = useRouter();
 
-    // Captura UTMs de la URL de la landing al montar el componente.
-    // Se almacenan en un ref para no causar re-renders y se incluyen en el POST.
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const utmKeys = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"];
         const captured: Record<string, string> = {};
         for (const key of utmKeys) {
             const val = params.get(key);
-            if (val) captured[key] = val.slice(0, 200); // sanity limit
+            if (val) captured[key] = val.slice(0, 200);
         }
         utmRef.current = captured;
     }, []);
 
-    const handleChange = useCallback(
-        (field: keyof LeadFormState, value: string | boolean) => {
-            setFormData((prev) => ({ ...prev, [field]: value }));
-            setErrors((prev) => ({ ...prev, [field]: null }));
-        },
-        []
-    );
+    const handleChange = useCallback((field: SimpleField, value: string) => {
+        setFormData((prev) => ({ ...prev, [field]: value }));
+        setErrors((prev) => ({ ...prev, [field]: null }));
+    }, []);
 
-    const handleBlur = useCallback((field: keyof LeadFormState, value: string | boolean) => {
-        if (typeof value === "string" && !value) return;
+    const handleBlur = useCallback((field: SimpleField, value: string) => {
+        if (!value) return;
         const error = validateField(field, value);
         setErrors((prev) => ({ ...prev, [field]: error }));
     }, []);
@@ -67,16 +64,9 @@ export default function LeadForm({ formId = "lead-form", compact = false }: Lead
         const newErrors: FieldErrors = {};
         let valid = true;
 
-        (Object.keys(formData) as (keyof LeadFormState)[]).forEach((field) => {
+        (Object.keys(formData) as SimpleField[]).forEach((field) => {
             const value = formData[field];
-            if (field === "acceptedRiskDisclaimer") {
-                if (value !== true) {
-                    newErrors[field] = "Debes aceptar el aviso de riesgo para continuar";
-                    valid = false;
-                }
-                return;
-            }
-            if (typeof value === "string" && !value.trim()) {
+            if (!value.trim()) {
                 newErrors[field] = "Este campo es obligatorio";
                 valid = false;
                 return;
@@ -113,7 +103,11 @@ export default function LeadForm({ formId = "lead-form", compact = false }: Lead
             const res = await fetch("/api/leads", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...formData, ...utmRef.current }),
+                body: JSON.stringify({
+                    ...formData,
+                    ...HIDDEN_DEFAULTS,
+                    ...utmRef.current,
+                }),
                 signal: controller.signal,
             });
 
@@ -129,7 +123,10 @@ export default function LeadForm({ formId = "lead-form", compact = false }: Lead
                 if (json?.fields?.length) {
                     const fe: FieldErrors = {};
                     for (const f of json.fields) {
-                        fe[f.field as keyof LeadFormState] = f.message;
+                        const field = f.field as string;
+                        if (field === "fullName" || field === "email" || field === "whatsapp") {
+                            fe[field] = f.message;
+                        }
                     }
                     setErrors(fe);
                     setServerError("Revisa los campos marcados.");
@@ -173,7 +170,7 @@ export default function LeadForm({ formId = "lead-form", compact = false }: Lead
                         letterSpacing: "0.1em",
                     }}
                 >
-                    Acceso gratuito
+                    Acceso inmediato gratuito
                 </span>
                 <h2
                     style={{
@@ -184,11 +181,11 @@ export default function LeadForm({ formId = "lead-form", compact = false }: Lead
                         lineHeight: 1.25,
                     }}
                 >
-                    Solicita tu guía cripto
+                    Recibe la guía + checklist
                 </h2>
                 <p style={{ color: "#9CA3AF", fontSize: "0.875rem", margin: 0, lineHeight: 1.5 }}>
-                    Recibirás contenido educativo gratuito. No compartiremos tu información con
-                    terceros sin tu consentimiento.
+                    Déjame tus datos y te envío el material para empezar con más criterio. También podré
+                    contactarte por WhatsApp si quieres resolver dudas sobre tu siguiente paso.
                 </p>
             </div>
 
@@ -269,7 +266,7 @@ export default function LeadForm({ formId = "lead-form", compact = false }: Lead
                 </div>
 
                 {/* WhatsApp */}
-                <div style={{ marginBottom: "0.875rem" }}>
+                <div style={{ marginBottom: "1rem" }}>
                     <label htmlFor={`${formId}-whatsapp`} style={labelStyle}>
                         WhatsApp (con código de país)
                     </label>
@@ -291,114 +288,6 @@ export default function LeadForm({ formId = "lead-form", compact = false }: Lead
                     </div>
                 </div>
 
-                {/* País */}
-                <div style={{ marginBottom: "0.875rem" }}>
-                    <label htmlFor={`${formId}-country`} style={labelStyle}>
-                        País
-                    </label>
-                    <select
-                        id={`${formId}-country`}
-                        className={`form-input ${errors.country ? "error" : ""}`}
-                        value={formData.country}
-                        onChange={(e) => handleChange("country", e.target.value)}
-                        onBlur={(e) => handleBlur("country", e.target.value)}
-                        disabled={status === "loading"}
-                        aria-invalid={!!errors.country}
-                    >
-                        <option value="" disabled>Selecciona tu país</option>
-                        {COUNTRY_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                    </select>
-                    <div className="field-error" role="alert" aria-live="polite">
-                        {errors.country || ""}
-                    </div>
-                </div>
-
-                {/* Experiencia cripto */}
-                <div style={{ marginBottom: "0.875rem" }}>
-                    <label htmlFor={`${formId}-exp`} style={labelStyle}>
-                        ¿Cuál es tu experiencia con cripto?
-                    </label>
-                    <select
-                        id={`${formId}-exp`}
-                        className={`form-input ${errors.cryptoExperience ? "error" : ""}`}
-                        value={formData.cryptoExperience}
-                        onChange={(e) => handleChange("cryptoExperience", e.target.value)}
-                        onBlur={(e) => handleBlur("cryptoExperience", e.target.value)}
-                        disabled={status === "loading"}
-                        aria-invalid={!!errors.cryptoExperience}
-                    >
-                        <option value="" disabled>Selecciona una opción</option>
-                        {CRYPTO_EXPERIENCE_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                    </select>
-                    <div className="field-error" role="alert" aria-live="polite">
-                        {errors.cryptoExperience || ""}
-                    </div>
-                </div>
-
-                {/* Interés de aprendizaje */}
-                <div style={{ marginBottom: "1rem" }}>
-                    <label htmlFor={`${formId}-interest`} style={labelStyle}>
-                        ¿Qué te gustaría aprender primero?
-                    </label>
-                    <select
-                        id={`${formId}-interest`}
-                        className={`form-input ${errors.learningInterest ? "error" : ""}`}
-                        value={formData.learningInterest}
-                        onChange={(e) => handleChange("learningInterest", e.target.value)}
-                        onBlur={(e) => handleBlur("learningInterest", e.target.value)}
-                        disabled={status === "loading"}
-                        aria-invalid={!!errors.learningInterest}
-                    >
-                        <option value="" disabled>Selecciona una opción</option>
-                        {LEARNING_INTEREST_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                    </select>
-                    <div className="field-error" role="alert" aria-live="polite">
-                        {errors.learningInterest || ""}
-                    </div>
-                </div>
-
-                {/* Disclaimer */}
-                <label
-                    htmlFor={`${formId}-disclaimer`}
-                    style={{
-                        display: "flex",
-                        gap: "0.75rem",
-                        alignItems: "flex-start",
-                        padding: "0.75rem",
-                        background: "rgba(255,255,255,0.02)",
-                        border: "1px solid rgba(255,255,255,0.06)",
-                        borderRadius: "10px",
-                        marginBottom: "1rem",
-                        cursor: "pointer",
-                    }}
-                >
-                    <input
-                        id={`${formId}-disclaimer`}
-                        type="checkbox"
-                        className="custom-checkbox"
-                        checked={formData.acceptedRiskDisclaimer}
-                        onChange={(e) => handleChange("acceptedRiskDisclaimer", e.target.checked)}
-                        disabled={status === "loading"}
-                        aria-invalid={!!errors.acceptedRiskDisclaimer}
-                    />
-                    <span style={{ fontSize: "0.8125rem", color: "#D1D5DB", lineHeight: 1.5 }}>
-                        Entiendo que el contenido es <strong>educativo</strong> y no es asesoría
-                        financiera. Operar en cripto implica riesgos y nunca debo invertir dinero
-                        que no pueda permitirme perder.
-                    </span>
-                </label>
-                {errors.acceptedRiskDisclaimer && (
-                    <div className="field-error" role="alert" aria-live="polite" style={{ marginTop: "-0.5rem", marginBottom: "0.75rem" }}>
-                        {errors.acceptedRiskDisclaimer}
-                    </div>
-                )}
-
                 {/* Submit */}
                 <button
                     type="submit"
@@ -411,7 +300,7 @@ export default function LeadForm({ formId = "lead-form", compact = false }: Lead
                             Enviando tu registro...
                         </span>
                     ) : (
-                        "Quiero mi guía gratuita"
+                        "Enviar y recibir la guía"
                     )}
                 </button>
 
@@ -424,7 +313,7 @@ export default function LeadForm({ formId = "lead-form", compact = false }: Lead
                         lineHeight: 1.5,
                     }}
                 >
-                    Después de registrarte, recibirás la guía y los siguientes pasos por correo.
+                    Sin spam. Recibirás la guía, checklist y próximos pasos por correo.
                 </p>
             </form>
         </div>

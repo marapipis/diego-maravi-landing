@@ -61,14 +61,14 @@ export default function AboutCoach() {
                         Diego Maraví
                     </h2>
                     <p style={{ color: "#D1D5DB", fontSize: "1rem", lineHeight: 1.7, marginBottom: "1rem" }}>
-                        Llevo varios años estudiando mercados financieros y cripto. He cometido errores,
-                        he aprendido de ellos y hoy comparto lo que sí funciona — y, sobre todo, lo que
-                        deberías evitar antes de operar tu primer dólar.
+                        Llevo varios años estudiando mercados financieros y cripto. Trabajo acompañando
+                        traders y usuarios que quieren entender mejor el ecosistema antes de operar con
+                        dinero real.
                     </p>
                     <p style={{ color: "#9CA3AF", fontSize: "0.9375rem", lineHeight: 1.65, marginBottom: "1.5rem" }}>
                         Mi enfoque es 100% educativo. No vendo señales, no prometo rentabilidad y no
-                        creo en atajos. Lo que sí encontrarás aquí son fundamentos, gestión de riesgo y
-                        criterio para tomar tus propias decisiones.
+                        creo en atajos. Lo que sí encontrarás aquí son fundamentos, gestión de riesgo,
+                        criterio y orientación para dar el siguiente paso de forma más ordenada.
                     </p>
 
                     <div
@@ -78,7 +78,7 @@ export default function AboutCoach() {
                             gap: "0.5rem",
                         }}
                     >
-                        {["Educación cripto", "Gestión de riesgo", "Análisis técnico", "Mentalidad inversora"].map((t) => (
+                        {["Educación cripto", "Gestión de riesgo", "Análisis técnico", "Bitunix ecosystem"].map((t) => (
                             <span
                                 key={t}
                                 style={{

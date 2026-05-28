@@ -7,9 +7,9 @@ const ERRORS = [
 
 const LEARN = [
     "Conceptos básicos: qué es cripto, blockchain, exchange y wallet",
-    "Cómo elegir tu primera operación con criterio",
+    "Cómo elegir tu primera operación sin actuar por impulso",
     "Gestión de capital y tamaño de posición",
-    "Cómo identificar contenido confiable y evitar estafas",
+    "Cómo identificar contenido confiable, plataformas y riesgos antes de registrarte",
 ];
 
 const Bullet = ({ children, type }: { children: string; type: "x" | "check" }) => (
@@ -68,10 +68,10 @@ export default function BeforeTrading() {
             <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
                 <div style={{ textAlign: "center", marginBottom: "3rem" }}>
                     <span className="section-eyebrow">Antes de operar, aprende primero</span>
-                    <h2 className="section-title">El mejor riesgo es el que entiendes</h2>
+                    <h2 className="section-title">Antes de operar, entiende qué puede salir mal</h2>
                     <p className="section-subtitle" style={{ margin: "0 auto", textAlign: "center" }}>
-                        La mayoría pierde dinero por desconocimiento, no por mala suerte. Esta guía
-                        ataca lo que pocos quieren mostrar antes de venderte una operación.
+                        Muchos pierden dinero por entrar tarde, usar demasiado apalancamiento o copiar
+                        señales sin entenderlas. Esta guía te ayuda a filtrar mejor antes de decidir.
                     </p>
                 </div>
 

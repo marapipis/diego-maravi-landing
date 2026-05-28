@@ -17,16 +17,16 @@ export default function CtaSection() {
                     textAlign: "center",
                 }}
             >
-                <span className="section-eyebrow">Empieza hoy</span>
+                <span className="section-eyebrow">Tu siguiente paso</span>
                 <h2 className="section-title" style={{ marginBottom: "1rem" }}>
-                    Solicita tu guía cripto gratuita
+                    Recibe la guía y decide con más criterio
                 </h2>
                 <p
                     className="section-subtitle"
                     style={{ margin: "0 auto 2.25rem auto", textAlign: "center", maxWidth: "560px" }}
                 >
-                    Déjame tus datos y te enviaré la guía a tu correo, junto con los siguientes pasos
-                    para que aprendas a tu ritmo.
+                    Déjame tus datos y te enviaré la guía a tu correo. Si tu perfil encaja, también podré
+                    orientarte sobre cómo empezar a aprender y operar de forma más ordenada.
                 </p>
                 <div style={{ maxWidth: "480px", margin: "0 auto", textAlign: "left" }}>
                     <LeadForm formId="cta-form" />

@@ -2,9 +2,9 @@ import Image from "next/image";
 import LeadForm from "./LeadForm";
 
 const BENEFITS = [
-    "Aprende a evitar los errores más comunes al empezar en cripto",
-    "Conoce cómo gestionar tu riesgo antes de operar",
-    "Recibe contenido educativo, sin promesas de ganancias",
+    "Evita FOMO, apalancamiento mal usado y promesas de ganancias rápidas",
+    "Aprende una regla simple para gestionar riesgo antes de tu primera operación",
+    "Recibe guía + checklist para decidir tu siguiente paso con más criterio",
 ];
 
 export default function Hero() {
@@ -28,7 +28,7 @@ export default function Hero() {
                     <div className="hero-grid-3col">
 
                         {/* Column 1: Copy + CTA */}
-                        <div>
+                        <div className="hero-copy-col">
                             <span
                                 style={{
                                     display: "inline-block",
@@ -44,7 +44,7 @@ export default function Hero() {
                                     marginBottom: "1.25rem",
                                 }}
                             >
-                                Educación cripto · Acceso gratuito
+                                Guía gratuita · Cripto para empezar con criterio
                             </span>
 
                             <h1
@@ -57,8 +57,8 @@ export default function Hero() {
                                     letterSpacing: "-0.02em",
                                 }}
                             >
-                                Aprende a invertir en cripto{" "}
-                                <span style={{ color: "#10B981" }}>sin tomar riesgos innecesarios</span>
+                                Aprende cripto sin caer en errores caros{" "}
+                                <span style={{ color: "#10B981" }}>antes de arriesgar tu dinero</span>
                             </h1>
 
                             <p
@@ -69,9 +69,9 @@ export default function Hero() {
                                     marginBottom: "1.75rem",
                                 }}
                             >
-                                Una guía gratuita para entender el mercado, gestionar el riesgo y dar
-                                tus primeros pasos en cripto con criterio. Sin jerga complicada y sin
-                                promesas.
+                                Te comparto una guía práctica para entender exchanges, riesgo y tipos de
+                                operación antes de comprar o hacer trading. Sin humo, sin señales mágicas
+                                y sin promesas de rentabilidad.
                             </p>
 
                             {/* Benefits */}
@@ -141,7 +141,7 @@ export default function Hero() {
                                         padding: "0.95rem 1.75rem",
                                     }}
                                 >
-                                    Quiero mi guía gratuita
+                                    Enviarme la guía gratis
                                     <svg
                                         fill="none"
                                         viewBox="0 0 24 24"
@@ -171,7 +171,7 @@ export default function Hero() {
                                     fontSize: "0.8125rem",
                                 }}
                             >
-                                Contenido educativo. No constituye asesoría financiera.
+                                Para principiantes y traders nuevos. Contenido educativo, no asesoría financiera.
                             </p>
                         </div>
 
@@ -257,7 +257,7 @@ export default function Hero() {
                         </div>
 
                         {/* Column 3: Lead form */}
-                        <div id="registro">
+                        <div id="registro" className="hero-form-col">
                             <LeadForm formId="hero-form" />
                         </div>
                     </div>
